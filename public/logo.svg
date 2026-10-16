@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 栖所 logo：屋檐 · 栖鸟
+     坐标刻意写成 64x64 的整数，public/favicon.ico 是用同一套几何生成的，
+     要改图请两边一起改（生成脚本见仓库说明）。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="栖所">
+  <!-- 深棕圆角方块底 -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#5D4037"/>
+  <!-- 米白屋檐：两坡向上的折线 -->
+  <path d="M13 39 L32 21 L51 39" stroke="#F5EFE0" stroke-width="7" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 檐尖上停着的鸟 -->
+  <circle cx="52" cy="31" r="4.4" fill="#F5EFE0"/>
+</svg>
