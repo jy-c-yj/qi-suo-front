@@ -60,16 +60,22 @@
         <el-table-column prop="createdTime" label="创建时间" width="180" />
         <el-table-column prop="modifiedBy" label="修改人" width="120" />
         <el-table-column prop="modifiedTime" label="修改时间" width="180" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="scope">
+            <el-button
+              :type="scope.row.isEnabled ? 'warning' : 'success'"
+              size="small"
+              @click="handleToggleEnabled(scope.row)"
+            >
+              {{ scope.row.isEnabled ? '禁用' : '启用' }}
+            </el-button>
             <el-button type="primary" size="small" @click="handleEdit(scope.row)">
               编辑
             </el-button>
-            <el-button 
-              type="danger" 
-              size="small" 
+            <el-button
+              type="danger"
+              size="small"
               @click="handleDelete(scope.row)"
-              style="margin-left: 8px"
               :disabled="scope.row.isEnabled"
             >
               删除
@@ -160,28 +166,12 @@
         width="500px"
       >
         <el-form :model="editForm" :rules="editRules" ref="editFormRef">
-          <el-form-item label="图片预览">
-            <el-image
-              :src="editForm.imageUrl"
-              fit="cover"
-              style="width: 100%; height: 200px; border-radius: 4px;"
-              :preview-src-list="[editForm.imageUrl]"
-            />
-          </el-form-item>
           <el-form-item label="图片描述" prop="description">
             <el-input
               v-model="editForm.description"
               type="textarea"
               rows="3"
               placeholder="请输入图片描述"
-            />
-          </el-form-item>
-          <el-form-item label="状态">
-            <el-switch
-              v-model="editForm.isEnabled"
-              active-text="启用"
-              inactive-text="禁用"
-              :disabled="!canToggleEditStatus()"
             />
           </el-form-item>
           <el-form-item label="创建信息">
@@ -353,18 +343,6 @@ const canToggleStatus = (image: CarouselImage): boolean => {
   }
 }
 
-// 检查编辑对话框中是否可以切换状态
-const canToggleEditStatus = (): boolean => {
-  if (editForm.isEnabled) {
-    // 禁用操作总是允许
-    return true
-  } else {
-    // 启用操作需要检查是否超过限制
-    // 如果当前图片已经是启用状态，或者启用图片数量小于限制，则允许
-    return enabledImageCount.value < MAX_ENABLED_IMAGES
-  }
-}
-
 // 加载图片列表
 const loadImageList = async () => {
   loading.value = true
@@ -505,19 +483,7 @@ const handleSubmitEdit = async () => {
     if (valid) {
       editLoading.value = true
       try {
-        // 处理状态变化
-        if (editForm.isEnabled !== originalForm.value.isEnabled) {
-          if (editForm.isEnabled) {
-            // 启用图片
-            await setCarouselImageEnabled(editForm.uid!)
-            ElMessage.success('图片已启用')
-          } else {
-            // 禁用图片
-            await setCarouselImageNotEnabled(editForm.uid!)
-            ElMessage.success('图片已禁用')
-          }
-        }
-        
+        // 启用/禁用已拆成表格里的独立按钮，编辑弹窗只改描述
         // 处理描述变化
         if (editForm.description !== undefined && editForm.description !== originalForm.value.description) {
           // 只发送必要的字段，不包含日期时间字段
@@ -553,6 +519,26 @@ const handleSubmitEdit = async () => {
   if (!hasChanges) {
     ElMessage.info('内容未发生变化')
     editDialogVisible.value = false
+  }
+}
+
+// 独立启用/禁用按钮
+const handleToggleEnabled = async (row: CarouselImage) => {
+  if (!row.isEnabled && !canToggleStatus(row)) {
+    ElMessage.warning(`最多只能启用 ${MAX_ENABLED_IMAGES} 张轮播图片`)
+    return
+  }
+  try {
+    if (row.isEnabled) {
+      await setCarouselImageNotEnabled(row.uid)
+      ElMessage.success('图片已禁用')
+    } else {
+      await setCarouselImageEnabled(row.uid)
+      ElMessage.success('图片已启用')
+    }
+    loadImageList()
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
   }
 }
 

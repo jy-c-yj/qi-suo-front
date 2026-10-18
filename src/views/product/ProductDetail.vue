@@ -21,6 +21,10 @@
             <el-icon class="nav-icon"><Document /></el-icon>
             <span>我的订单</span>
           </div>
+          <div class="nav-item" @click="goToCart">
+            <el-icon class="nav-icon"><ShoppingCart /></el-icon>
+            <span>购物车</span>
+          </div>
         </div>
       </div>
     </header>
@@ -301,8 +305,8 @@
             <span class="value">{{ orderDetail.orderNo }}</span>
           </div>
           <div class="order-status">
-            <el-tag :type="orderDetail.status === '待支付' ? 'warning' : 'success'">
-              {{ orderDetail.status }}
+            <el-tag :type="getOrderStatusType(orderDetail.status)">
+              {{ normalizeOrderStatus(orderDetail.status) }}
             </el-tag>
           </div>
         </div>
@@ -353,7 +357,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElTag, ElButton, ElIcon, ElDialog, ElInputNumber } from 'element-plus'
 import { User, Document, Loading, Warning, HomeFilled, ShoppingCart, Check } from '@element-plus/icons-vue'
 import { queryProductDetail, getCartList, addCartItem, deleteCartItem, getUserAddress, createOrder } from '@/api/user'
-import { clearSession } from '@/utils/auth'
+import { logoutAndClear } from '@/utils/logout'
+import { getOrderStatusType, normalizeOrderStatus } from '@/utils/orderStatus'
 import type { BackgroundGetProductDetailDVO, CartDVO, UserAddressDVO, UserOrdersDetailDVO } from '@/types'
 
 const route = useRoute()
@@ -447,12 +452,14 @@ const goToOrders = () => {
   router.push('/user/orders')
 }
 
+// 跳转到购物车页面
+const goToCart = () => {
+  router.push('/user/cart')
+}
+
 // 退出登录
-const handleLogout = () => {
-  // 原来删的是 access_token / refresh_token_key —— 这两个 key 全项目都不存在，
-  // 所以 userToken 一直留着，退出登录其实没退出。统一走 clearSession
-  clearSession('user')
-  router.push('/login/user')
+const handleLogout = async () => {
+  await logoutAndClear('user')
 }
 
 // 购物车总计价格

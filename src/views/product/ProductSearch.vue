@@ -21,6 +21,10 @@
             <el-icon class="nav-icon"><Document /></el-icon>
             <span>我的订单</span>
           </div>
+          <div class="nav-item" @click="goToCart">
+            <el-icon class="nav-icon"><ShoppingCart /></el-icon>
+            <span>购物车</span>
+          </div>
         </div>
       </div>
     </header>
@@ -69,6 +73,7 @@
                 :infinite-scroll-distance="100"
                 :infinite-scroll-immediate="false"
               >
+                <el-option label="全部" :value="null" />
                 <el-option
                   v-for="category in categories"
                   :key="category.id"
@@ -208,10 +213,11 @@ import {
   Loading,
   StarFilled,
   Search,
-  Warning
+  Warning,
+  ShoppingCart
 } from '@element-plus/icons-vue'
 import { queryProductByCondition, getCategory } from '@/api/user'
-import { clearSession } from '@/utils/auth'
+import { logoutAndClear } from '@/utils/logout'
 import type { QueryProductDVO, QueryProductByConditionDTO, GetCategoryDVO } from '@/types'
 
 const route = useRoute()
@@ -420,11 +426,14 @@ const goToOrders = () => {
   router.push('/user/orders')
 }
 
+// 跳转到购物车页面
+const goToCart = () => {
+  router.push('/user/cart')
+}
+
 // 退出登录
-const handleLogout = () => {
-  // 同 ProductDetail：原来删的 key 根本不存在，等于没退出
-  clearSession('user')
-  router.push('/login/user')
+const handleLogout = async () => {
+  await logoutAndClear('user')
 }
 
 // 初始化搜索条件（从URL参数获取）

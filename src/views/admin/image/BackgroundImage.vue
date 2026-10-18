@@ -72,7 +72,6 @@
         style="width: 100%"
         border
       >
-        <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="uid" label="UUID" width="200" />
         <el-table-column label="图片预览" width="120">
           <template #default="scope">
@@ -94,27 +93,33 @@
         </el-table-column>
         <el-table-column prop="createdTime" label="创建时间" width="180" />
         <el-table-column prop="updatedTime" label="更新时间" width="180" />
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="scope">
-            <el-button 
-              type="success" 
-              size="small" 
+            <el-button
+              type="success"
+              size="small"
               @click="handleSetAsCurrent(scope.row)"
               :loading="setCurrentImageLoading"
-              :disabled="!scope.row.isEnabled || (currentBackgroundImage && currentBackgroundImage.uid === scope.row.uid)"
+              :disabled="currentBackgroundImage && currentBackgroundImage.uid === scope.row.uid"
             >
               <el-icon><Check /></el-icon>
               设为当前
             </el-button>
-            <el-button type="primary" size="small" @click="handleEdit(scope.row)" style="margin-left: 8px">
+            <el-button
+              :type="scope.row.isEnabled ? 'warning' : 'success'"
+              size="small"
+              @click="handleToggleEnabled(scope.row)"
+            >
+              {{ scope.row.isEnabled ? '禁用' : '启用' }}
+            </el-button>
+            <el-button type="primary" size="small" @click="handleEdit(scope.row)">
               编辑
             </el-button>
-            <el-button 
-              type="danger" 
-              size="small" 
+            <el-button
+              type="danger"
+              size="small"
               @click="handleDelete(scope.row)"
               :disabled="currentBackgroundImage && currentBackgroundImage.uid === scope.row.uid"
-              style="margin-left: 8px"
             >
               删除
             </el-button>
@@ -220,13 +225,6 @@
             placeholder="请输入图片描述"
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-switch
-            v-model="editForm.isEnabled"
-            active-text="启用"
-            inactive-text="禁用"
-          />
-        </el-form-item>
         <el-form-item label="创建时间">
           <el-tag>{{ editForm.createdTime }}</el-tag>
         </el-form-item>
@@ -252,10 +250,6 @@
       :close-on-click-modal="false"
     >
       <p>您确定要删除这张背景图片吗？</p>
-      <p class="delete-warning">
-        <el-icon><Warning /></el-icon>
-        <span>此操作将标记图片为已删除状态，不会物理删除文件。</span>
-      </p>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="deleteDialogVisible = false">取消</el-button>
@@ -272,7 +266,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, InfoFilled, UploadFilled, Delete, Warning, Check, Star } from '@element-plus/icons-vue'
+import { Plus, InfoFilled, UploadFilled, Delete, Check, Star } from '@element-plus/icons-vue'
 import { 
   getHomeBackGroundImageList, 
   setHomeBackGroundImageEnabled, 
@@ -513,20 +507,7 @@ const handleSubmitEdit = async () => {
     if (valid) {
       editLoading.value = true
       try {
-        // 处理状态变化
-        if (editForm.isEnabled !== undefined && editForm.isEnabled !== originalForm.value.isEnabled) {
-          if (editForm.isEnabled) {
-            // 启用图片
-            await setHomeBackGroundImageEnabled(editForm.uid!, currentPage.value)
-            ElMessage.success('图片已启用')
-          } else {
-            // 禁用图片
-            await setHomeBackGroundImageNotEnabled(editForm.uid!, currentPage.value)
-            ElMessage.success('图片已禁用')
-          }
-        }
-        
-        // 处理描述变化
+        // 处理描述变化（启用/禁用已拆成表格里的独立按钮）
         if (editForm.description !== undefined && editForm.description !== originalForm.value.description) {
           // 只发送必要的字段，不包含日期时间字段
           const updateData = {
@@ -562,6 +543,23 @@ const handleSubmitEdit = async () => {
 }
 
 
+
+// 独立启用/禁用按钮
+const handleToggleEnabled = async (row: HomeBackgroundImageDVO) => {
+  try {
+    if (row.isEnabled) {
+      await setHomeBackGroundImageNotEnabled(row.uid, currentPage.value)
+      ElMessage.success('图片已禁用')
+    } else {
+      await setHomeBackGroundImageEnabled(row.uid, currentPage.value)
+      ElMessage.success('图片已启用')
+    }
+    loadImageList()
+    loadCurrentBackgroundImage()
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
+  }
+}
 
 // 处理删除
 const handleDelete = (row: HomeBackgroundImageDVO) => {

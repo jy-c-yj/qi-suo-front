@@ -7,7 +7,7 @@
     </div>
 
     <!-- 统计卡片 -->
-    <div class="stats-section">
+    <div class="stats-section" v-loading="statsLoading">
       <el-row :gutter="20">
         <el-col :span="8">
           <el-card class="stat-card">
@@ -42,7 +42,7 @@
                 <Money />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ totalSales }}</div>
+                <div class="stat-value">¥{{ totalSales.toFixed(2) }}</div>
                 <div class="stat-label">总销售额</div>
               </div>
             </div>
@@ -60,7 +60,7 @@
 
           </div>
         </template>
-        <el-table :data="recentOrders" style="width: 100%">
+        <el-table :data="recentOrders" style="width: 100%" v-loading="ordersLoading">
           <el-table-column prop="orderId" label="订单ID"  />
           <!-- <el-table-column prop="customerName" label="客户名称" /> -->
           <el-table-column prop="amount" label="订单金额" width="120">
@@ -92,22 +92,21 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { Goods, Ticket, Money } from '@element-plus/icons-vue'
-import { getMerchantOrdersList } from '@/api/user'
+import { getMerchantOrdersList, getMerchantProductList } from '@/api/user'
+import { getOrderStatusType, normalizeOrderStatus } from '@/utils/orderStatus'
 
 // 商家信息
 const merchantName = ref(localStorage.getItem('merchantName') || '商家')
 
-// 统计数据
-const productCount = ref(128)
-const orderCount = ref(56)
-const totalSales = ref(12800)
-
-
+// 统计数据（全部来自后端，不再使用固定演示数字）
+const productCount = ref(0)
+const orderCount = ref(0)
+const totalSales = ref(0)
+const statsLoading = ref(false)
 
 // 最近订单数据
 interface OrderItem {
   orderId: string
-  customerName: string
   amount: number
   status: string
   createdAt: string
@@ -116,51 +115,85 @@ interface OrderItem {
 const recentOrders = ref<OrderItem[]>([])
 const ordersLoading = ref(false)
 
-// 获取订单状态类型
-const getOrderStatusType = (status: string): string => {
-  switch (status) {
-    case '待处理':
-      return 'info'
-    case '处理中':
-      return 'warning'
-    case '已发货':
-    case '已完成':
-      return 'success'
-    case '已取消':
-      return 'danger'
-    default:
-      return 'info'
-  }
-}
+// 计入销售额的状态：未支付、已取消不算
+const SALES_STATUSES = new Set(['已支付', '已发货', '已完成'])
 
 // 获取订单状态文本
 const getOrderStatusText = (status: string): string => {
-  return status || '未知'
+  return normalizeOrderStatus(status) || '未知'
 }
 
 // 组件挂载时初始化数据
 onMounted(() => {
-  // 从后端获取最近订单数据
-  fetchRecentOrders()
+  loadDashboard()
 })
 
-// 获取最近订单数据
+const loadDashboard = async () => {
+  statsLoading.value = true
+  try {
+    await Promise.all([fetchProductCount(), fetchOrderStats(), fetchRecentOrders()])
+  } finally {
+    statsLoading.value = false
+  }
+}
+
+// 商品数量：复用商家商品分页接口，只取 total
+const fetchProductCount = async () => {
+  try {
+    const response = await getMerchantProductList({ pageNum: 1, pageSize: 1 })
+    if (response.code === 1 && response.data) {
+      productCount.value = Number(response.data.total) || 0
+    } else {
+      productCount.value = 0
+    }
+  } catch (error: any) {
+    console.error('获取商品数量失败:', error)
+    productCount.value = 0
+  }
+}
+
+// 订单数量与总销售额：分页拉取全部订单后统计，避免只统计第一页
+const fetchOrderStats = async () => {
+  try {
+    const pageSize = 100
+    let pageNum = 1
+    let total = 0
+    let sales = 0
+
+    while (true) {
+      const page = await getMerchantOrdersList(pageNum, pageSize, undefined, 'desc')
+      total = Number(page.total) || 0
+      const rows = page.rows || []
+      for (const order of rows) {
+        if (SALES_STATUSES.has(normalizeOrderStatus(order.status))) {
+          sales += Number(order.totalAmount) || 0
+        }
+      }
+      if (rows.length === 0 || pageNum * pageSize >= total) break
+      pageNum++
+    }
+
+    orderCount.value = total
+    totalSales.value = Math.round(sales * 100) / 100
+  } catch (error: any) {
+    console.error('获取订单统计失败:', error)
+    orderCount.value = 0
+    totalSales.value = 0
+  }
+}
+
+// 获取最近订单数据（后端按创建时间倒序，取最新 5 条）
 const fetchRecentOrders = async () => {
   try {
     ordersLoading.value = true
-    const response = await getMerchantOrdersList(1, 5)
-    if (response.rows && response.rows.length > 0) {
-      // 转换数据格式以匹配表格结构
-      recentOrders.value = response.rows.map((order: any) => ({
-        orderId: order.orderNo,
-        customerName: '客户', // 后端数据中没有客户名称，暂时使用默认值
-        amount: order.totalAmount,
-        status: order.status,
-        createdAt: order.createdAt
-      }))
-    } else {
-      recentOrders.value = []
-    }
+    const response = await getMerchantOrdersList(1, 5, undefined, 'desc')
+    const rows = response.rows || []
+    recentOrders.value = rows.map((order) => ({
+      orderId: order.orderNo,
+      amount: order.totalAmount,
+      status: order.status,
+      createdAt: order.createdAt
+    }))
   } catch (error: any) {
     console.error('获取最近订单失败:', error)
     recentOrders.value = []

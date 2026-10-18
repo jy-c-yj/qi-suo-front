@@ -72,11 +72,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { Odometer, Goods, Ticket, Setting, Menu, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
-import { clearSession } from '@/utils/auth'
+import { getMerchantInformation } from '@/api/user'
+import { logoutAndClear } from '@/utils/logout'
 
 // 路由实例
 const router = useRouter()
@@ -116,20 +116,38 @@ const toggleMenu = () => {
   isMenuCollapsed.value = !isMenuCollapsed.value
 }
 
-// 退出登录
-// 原来这里先 await logout()（POST /auth/user/logout）—— 后端并没有这个接口，会 404 进 catch，
-// 于是 token 根本没被清掉、界面提示"退出登录失败"，人其实还登着；
-// 而且商家端退出也不该去调用户端的登出接口。本地把凭证清干净就够了。
-const handleLogout = () => {
-  clearSession('merchant')
-  ElMessage.success('退出登录成功')
-  // 跳转到登录页面
-  router.push('/login/merchant')
+// 退出登录：注销后端刷新令牌 + 清本端会话
+const handleLogout = async () => {
+  await logoutAndClear('merchant')
 }
 
-// 组件挂载时初始化
+// 右上角商家名与 logo：从店铺设置接口取最新值
+const loadMerchantProfile = async () => {
+  try {
+    const response = await getMerchantInformation()
+    if (response.code === 1 && response.data) {
+      if (response.data.merchantName) {
+        merchantName.value = response.data.merchantName
+      }
+      merchantLogo.value = response.data.shopLogoUrl || ''
+    }
+  } catch (error) {
+    console.warn('获取商家信息失败:', error)
+  }
+}
+
+// 店铺设置里上传 logo / 改名后通知这里刷新
+const handleProfileUpdated = () => {
+  loadMerchantProfile()
+}
+
 onMounted(() => {
-  // 可以在这里加载商家信息
+  loadMerchantProfile()
+  window.addEventListener('merchant-profile-updated', handleProfileUpdated)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('merchant-profile-updated', handleProfileUpdated)
 })
 </script>
 

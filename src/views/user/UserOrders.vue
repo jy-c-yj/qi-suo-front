@@ -16,6 +16,14 @@
             <el-icon class="nav-icon"><User /></el-icon>
             <span>个人信息</span>
           </div>
+          <div class="nav-item active">
+            <el-icon class="nav-icon"><Document /></el-icon>
+            <span>我的订单</span>
+          </div>
+          <div class="nav-item" @click="goToCart">
+            <el-icon class="nav-icon"><ShoppingCart /></el-icon>
+            <span>购物车</span>
+          </div>
         </div>
       </div>
     </header>
@@ -26,9 +34,26 @@
           <template #header>
             <div class="card-header">
               <span>我的订单</span>
-              <el-button type="primary" @click="loadOrdersList" :loading="loading">
-                刷新
-              </el-button>
+              <div class="header-actions">
+                <el-select
+                  v-model="statusFilter"
+                  placeholder="全部状态"
+                  clearable
+                  class="status-filter"
+                  @change="loadOrdersList"
+                >
+                  <el-option label="全部状态" value="" />
+                  <el-option
+                    v-for="status in orderStatusOptions"
+                    :key="status"
+                    :label="status"
+                    :value="status"
+                  />
+                </el-select>
+                <el-button type="primary" @click="loadOrdersList" :loading="loading">
+                  刷新
+                </el-button>
+              </div>
             </div>
           </template>
 
@@ -60,8 +85,8 @@
                   <span class="label">订单编号:</span>
                   <span class="value">{{ order.orderNo }}</span>
                 </div>
-                <el-tag :type="getStatusType(order.status)" size="small">
-                  {{ order.status }}
+                <el-tag :type="getOrderStatusType(order.status)" size="small">
+                  {{ normalizeOrderStatus(order.status) }}
                 </el-tag>
               </div>
               <div class="order-info">
@@ -112,8 +137,8 @@
             <span class="label">订单编号:</span>
             <span class="value">{{ orderDetail.orderNo }}</span>
           </div>
-          <el-tag :type="getStatusType(orderDetail.status)">
-            {{ orderDetail.status }}
+          <el-tag :type="getOrderStatusType(orderDetail.status)">
+            {{ normalizeOrderStatus(orderDetail.status) }}
           </el-tag>
         </div>
 
@@ -162,7 +187,7 @@
 
         <div class="detail-actions">
           <el-button
-            v-if="orderDetail.status === '待支付'"
+            v-if="isUnpaid(orderDetail.status)"
             type="primary"
             @click="handlePayOrder"
             :loading="payLoading"
@@ -187,9 +212,10 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElTag, ElButton, ElIcon, ElCard, ElDialog, ElUpload, ElAvatar } from 'element-plus'
-import { User, Document, Loading, Warning } from '@element-plus/icons-vue'
+import { User, Document, ShoppingCart, Loading, Warning } from '@element-plus/icons-vue'
 import { getOrdersList, getOrderDetail, payOrder, confirmOrder } from '@/api/user'
-import { clearSession } from '@/utils/auth'
+import { logoutAndClear } from '@/utils/logout'
+import { getOrderStatusType, isUnpaid, normalizeOrderStatus } from '@/utils/orderStatus'
 import type { UserOrdersDVO, UserOrdersDetailDVO } from '@/types'
 
 const router = useRouter()
@@ -199,6 +225,8 @@ const username = ref(localStorage.getItem('username') || '用户')
 const loading = ref(false)
 const error = ref('')
 const ordersList = ref<UserOrdersDVO[]>([])
+const statusFilter = ref('')
+const orderStatusOptions = ['未支付', '已支付', '已发货', '已完成', '已取消']
 
 const detailDialogVisible = ref(false)
 const detailLoading = ref(false)
@@ -210,7 +238,7 @@ const loadOrdersList = async () => {
   loading.value = true
   error.value = ''
   try {
-    const response = await getOrdersList()
+    const response = await getOrdersList(statusFilter.value || undefined)
     if (response.code === 1 && response.data) {
       ordersList.value = response.data
     } else {
@@ -284,23 +312,6 @@ const handleConfirmOrder = async () => {
   }
 }
 
-const getStatusType = (status: string) => {
-  switch (status) {
-    case '待支付':
-      return 'warning'
-    case '已支付':
-      return 'primary'
-    case '已发货':
-      return 'info'
-    case '已完成':
-      return 'success'
-    case '已取消':
-      return 'danger'
-    default:
-      return 'info'
-  }
-}
-
 const formatDate = (dateString: string | null) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
@@ -322,10 +333,12 @@ const goToProfile = () => {
   router.push('/user/profile')
 }
 
-const handleLogout = () => {
-  // 同 ProductDetail：原来删的 key 根本不存在，等于没退出
-  clearSession('user')
-  router.push('/login/user')
+const goToCart = () => {
+  router.push('/user/cart')
+}
+
+const handleLogout = async () => {
+  await logoutAndClear('user')
 }
 
 onMounted(() => {
@@ -441,13 +454,15 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.nav-item:hover {
+.nav-item:hover,
+.nav-item.active {
   background-color: var(--primary-color);
   color: var(--text-color);
   transform: translateY(-1px);
 }
 
-.nav-item:hover .nav-icon {
+.nav-item:hover .nav-icon,
+.nav-item.active .nav-icon {
   color: var(--text-color);
 }
 
@@ -480,6 +495,16 @@ onMounted(() => {
   font-size: 18px;
   font-weight: 500;
   color: var(--text-color);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-filter {
+  width: 140px;
 }
 
 .loading-container,

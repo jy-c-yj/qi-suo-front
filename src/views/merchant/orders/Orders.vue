@@ -4,13 +4,23 @@
     <div class="page-header">
       <h2>订单管理</h2>
       <div class="header-actions">
-        <el-select v-model="statusFilter" placeholder="订单状态" clearable class="status-filter">
+        <el-select
+          v-model="statusFilter"
+          placeholder="订单状态"
+          clearable
+          class="status-filter"
+          @change="handleFilterChange"
+        >
           <el-option label="全部" value="" />
-          <el-option label="待支付" value="待支付" />
+          <el-option label="未支付" value="未支付" />
           <el-option label="已支付" value="已支付" />
           <el-option label="已发货" value="已发货" />
           <el-option label="已完成" value="已完成" />
           <el-option label="已取消" value="已取消" />
+        </el-select>
+        <el-select v-model="sortOrder" class="sort-select" @change="handleFilterChange">
+          <el-option label="最新优先" value="desc" />
+          <el-option label="最早优先" value="asc" />
         </el-select>
         <el-button type="primary" @click="loadOrdersList" :loading="loading">
           <el-icon><Search /></el-icon>
@@ -38,7 +48,7 @@
         <!-- 订单列表 -->
         <div v-else class="order-table-wrapper">
           <el-table
-            :data="filteredOrdersList"
+            :data="ordersList"
             style="width: 100%"
             stripe
             :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: '600' }"
@@ -51,8 +61,8 @@
             </el-table-column>
             <el-table-column prop="status" label="状态" width="120" align="center">
               <template #default="scope">
-                <el-tag :type="getStatusType(scope.row.status)" size="small">
-                  {{ scope.row.status }}
+                <el-tag :type="getOrderStatusType(scope.row.status)" size="small">
+                  {{ normalizeOrderStatus(scope.row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -116,8 +126,8 @@
             <span class="label">订单编号:</span>
             <span class="value">{{ orderDetail.orderNo }}</span>
           </div>
-          <el-tag :type="getStatusType(orderDetail.status)">
-            {{ orderDetail.status }}
+          <el-tag :type="getOrderStatusType(orderDetail.status)">
+            {{ normalizeOrderStatus(orderDetail.status) }}
           </el-tag>
         </div>
 
@@ -180,10 +190,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElTag, ElButton, ElIcon, ElCard, ElDialog, ElTable, ElTableColumn, ElPagination, ElSelect, ElOption } from 'element-plus'
 import { Loading, Warning, Document, Search } from '@element-plus/icons-vue'
 import { getMerchantOrdersList, getMerchantOrderDetail, setMerchantOrdersStatus } from '@/api/user'
+import { getOrderStatusType, normalizeOrderStatus } from '@/utils/orderStatus'
 import type { MerchantOrdersDVO, UserOrdersDetailDVO } from '@/types'
 
 // 分页参数
@@ -195,8 +206,8 @@ const total = ref(0)
 const loading = ref(false)
 const error = ref('')
 const ordersList = ref<MerchantOrdersDVO[]>([])
-const allOrdersList = ref<MerchantOrdersDVO[]>([])
 const statusFilter = ref('')
+const sortOrder = ref<'asc' | 'desc'>('desc')
 
 // 订单详情
 const detailDialogVisible = ref(false)
@@ -204,22 +215,25 @@ const detailLoading = ref(false)
 const orderDetail = ref<UserOrdersDetailDVO | null>(null)
 const statusLoading = ref(false)
 
-// 筛选后的订单列表
-const filteredOrdersList = computed(() => {
-  if (!statusFilter.value) {
-    return allOrdersList.value
-  }
-  return allOrdersList.value.filter(order => order.status === statusFilter.value)
-})
+// 状态 / 排序交给后端处理，否则只会过滤当前这一页，切换到没有匹配订单的页就会显示空
+const handleFilterChange = () => {
+  currentPage.value = 1
+  loadOrdersList()
+}
 
 // 加载订单列表
 const loadOrdersList = async () => {
   loading.value = true
   error.value = ''
   try {
-    const response = await getMerchantOrdersList(currentPage.value, pageSize.value)
+    const response = await getMerchantOrdersList(
+      currentPage.value,
+      pageSize.value,
+      statusFilter.value || undefined,
+      sortOrder.value
+    )
     if (response) {
-      allOrdersList.value = response.rows || []
+      ordersList.value = response.rows || []
       total.value = response.total || 0
     }
   } catch (err: any) {
@@ -266,24 +280,6 @@ const handleSetStatus = async (orderId: number) => {
     ElMessage.error(err.message || '操作失败')
   } finally {
     statusLoading.value = false
-  }
-}
-
-// 获取状态类型
-const getStatusType = (status: string) => {
-  switch (status) {
-    case '待支付':
-      return 'warning'
-    case '已支付':
-      return 'primary'
-    case '已发货':
-      return 'info'
-    case '已完成':
-      return 'success'
-    case '已取消':
-      return 'danger'
-    default:
-      return 'info'
   }
 }
 
@@ -345,7 +341,8 @@ onMounted(() => {
   align-items: center;
 }
 
-.status-filter {
+.status-filter,
+.sort-select {
   width: 150px;
 }
 

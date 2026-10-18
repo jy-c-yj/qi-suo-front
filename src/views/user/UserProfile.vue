@@ -17,9 +17,17 @@
           </div>
         </div>
         <div class="nav-right">
+          <div class="nav-item active">
+            <el-icon class="nav-icon"><User /></el-icon>
+            <span>个人信息</span>
+          </div>
           <div class="nav-item" @click="goToOrders">
             <el-icon class="nav-icon"><Document /></el-icon>
             <span>我的订单</span>
+          </div>
+          <div class="nav-item" @click="goToCart">
+            <el-icon class="nav-icon"><ShoppingCart /></el-icon>
+            <span>购物车</span>
           </div>
         </div>
       </div>
@@ -60,7 +68,7 @@
                 <el-upload
                   v-if="isEditing"
                   class="avatar-uploader"
-                  action="http://localhost:8080/api/file/upload"
+                  :action="`${API_BASE_URL}/file/upload`"
                   :show-file-list="false"
                   :on-success="handleAvatarSuccess"
                   :on-error="handleAvatarError"
@@ -85,25 +93,12 @@
                 <el-input v-model="editForm.username" placeholder="请输入用户名" />
               </el-form-item>
 
-              <el-form-item label="密码" prop="password">
-                <el-input 
-                  v-model="editForm.password" 
-                  type="password" 
-                  placeholder="请输入密码"
-                  show-password
-                />
-              </el-form-item>
-
               <el-form-item label="手机号" prop="phone">
                 <el-input v-model="editForm.phone" placeholder="请输入手机号" />
               </el-form-item>
 
               <el-form-item label="邮箱" prop="email">
                 <el-input v-model="editForm.email" placeholder="请输入邮箱" />
-              </el-form-item>
-
-              <el-form-item label="头像URL" prop="imageUrl">
-                <el-input v-model="editForm.imageUrl" placeholder="头像URL" />
               </el-form-item>
             </el-form>
 
@@ -115,6 +110,52 @@
               <el-button @click="handleCancel">取消</el-button>
             </div>
           </div>
+        </el-card>
+
+        <!-- 修改密码卡片 -->
+        <el-card class="password-card">
+          <template #header>
+            <div class="card-header">
+              <span>修改密码</span>
+            </div>
+          </template>
+          <el-form
+            ref="passwordFormRef"
+            :model="passwordForm"
+            :rules="passwordRules"
+            label-width="100px"
+            class="password-form"
+          >
+            <el-form-item label="旧密码" prop="oldPassword">
+              <el-input
+                v-model="passwordForm.oldPassword"
+                type="password"
+                placeholder="请输入旧密码"
+                show-password
+              />
+            </el-form-item>
+            <el-form-item label="新密码" prop="newPassword">
+              <el-input
+                v-model="passwordForm.newPassword"
+                type="password"
+                placeholder="请输入新密码"
+                show-password
+              />
+            </el-form-item>
+            <el-form-item label="确认新密码" prop="confirmPassword">
+              <el-input
+                v-model="passwordForm.confirmPassword"
+                type="password"
+                placeholder="请再次输入新密码"
+                show-password
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="passwordSaving" @click="handleChangePassword">
+                确认修改
+              </el-button>
+            </el-form-item>
+          </el-form>
         </el-card>
 
         <!-- 地址管理卡片 -->
@@ -203,14 +244,16 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  Document, 
-  Loading, 
+import {
+  User,
+  Document,
+  ShoppingCart,
+  Loading,
   Warning,
   Location
 } from '@element-plus/icons-vue'
-import { getUserInformation, updateUserInformation, getUserAddress, addUserAddress, updateUserAddress, deleteUserAddress } from '@/api/user'
-import { clearSession } from '@/utils/auth'
+import { API_BASE_URL, getUserInformation, updateUserInformation, changeUserPassword, getUserAddress, addUserAddress, updateUserAddress, deleteUserAddress } from '@/api/user'
+import { logoutAndClear } from '@/utils/logout'
 import type { UserInformationDVO, UserInformationUpdateDTO, UserAddressDVO, UserAddressDTO } from '@/types'
 
 const router = useRouter()
@@ -227,7 +270,6 @@ const formRef = ref()
 // 编辑表单
 const editForm = ref<UserInformationUpdateDTO>({
   username: '',
-  password: '',
   imageUrl: '',
   phone: '',
   email: ''
@@ -239,10 +281,6 @@ const rules = {
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
   ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '长度在 6 到 20 个字符', trigger: 'blur' }
-  ],
   phone: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
@@ -251,6 +289,66 @@ const rules = {
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
   ]
+}
+
+// 修改密码
+const passwordFormRef = ref()
+const passwordSaving = ref(false)
+const passwordForm = ref({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const passwordRules = {
+  oldPassword: [
+    { required: true, message: '请输入旧密码', trigger: 'blur' }
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 20, message: '密码长度在 6 到 20 个字符', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    {
+      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+        if (value !== passwordForm.value.newPassword) {
+          callback(new Error('两次输入的新密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
+const handleChangePassword = async () => {
+  if (!passwordFormRef.value) return
+  try {
+    await passwordFormRef.value.validate()
+  } catch {
+    return
+  }
+  passwordSaving.value = true
+  try {
+    const response = await changeUserPassword({
+      oldPassword: passwordForm.value.oldPassword,
+      newPassword: passwordForm.value.newPassword
+    })
+    if (response.code === 1) {
+      ElMessage.success('密码修改成功，请使用新密码登录')
+      passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
+      passwordFormRef.value.resetFields()
+    } else {
+      ElMessage.error(response.msg || '密码修改失败')
+    }
+  } catch (err: any) {
+    console.error('修改密码失败:', err)
+    ElMessage.error(err.message || '密码修改失败')
+  } finally {
+    passwordSaving.value = false
+  }
 }
 
 // 地址管理相关
@@ -283,7 +381,6 @@ const fetchUserInfo = async () => {
       // 初始化编辑表单
       editForm.value = {
         username: response.data.username,
-        password: response.data.password ? response.data.password.replace('{noop}', '') : '',
         imageUrl: response.data.imageUrl,
         phone: response.data.phone,
         email: response.data.email
@@ -316,7 +413,6 @@ const handleCancel = () => {
   if (userInfo.value) {
     editForm.value = {
       username: userInfo.value.username,
-      password: userInfo.value.password ? userInfo.value.password.replace('{noop}', '') : '',
       imageUrl: userInfo.value.imageUrl,
       phone: userInfo.value.phone,
       email: userInfo.value.email
@@ -477,6 +573,11 @@ const goToOrders = () => {
   router.push('/user/orders')
 }
 
+// 跳转到购物车
+const goToCart = () => {
+  router.push('/user/cart')
+}
+
 // 退出登录
 const handleLogout = () => {
   ElMessageBox.confirm(
@@ -487,12 +588,9 @@ const handleLogout = () => {
       cancelButtonText: '取消',
       type: 'warning',
     }
-  ).then(() => {
-    // 清除登录信息（只清用户端，商家端/管理端的登录态不受影响）
-    clearSession('user')
-    
-    ElMessage.success('退出登录成功')
-    router.push('/login/user')
+  ).then(async () => {
+    // 后端注销刷新令牌，并在 finally 里清本端会话、跳登录页
+    await logoutAndClear('user')
   }).catch(() => {
     // 取消退出
   })
@@ -614,13 +712,15 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.nav-item:hover {
+.nav-item:hover,
+.nav-item.active {
   background-color: var(--primary-color);
   color: var(--text-color);
   transform: translateY(-1px);
 }
 
-.nav-item:hover .nav-icon {
+.nav-item:hover .nav-icon,
+.nav-item.active .nav-icon {
   color: var(--text-color);
 }
 
@@ -714,11 +814,16 @@ onMounted(() => {
 }
 
 /* 地址管理卡片 */
-.address-card {
+.address-card,
+.password-card {
   border-radius: var(--border-radius);
   box-shadow: var(--shadow);
   background-color: var(--white);
   margin-top: 24px;
+}
+
+.password-form {
+  max-width: 500px;
 }
 
 .address-list {

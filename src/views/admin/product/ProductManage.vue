@@ -49,6 +49,19 @@
       <div class="product-list-section">
         <el-table v-loading="loading" :data="productList" style="width: 100%">
           <el-table-column prop="id" label="商品ID" width="80" />
+          <el-table-column prop="productImageUrl" label="商品图片" width="100">
+            <template #default="scope">
+              <el-image
+                v-if="scope.row.productImageUrl"
+                :src="scope.row.productImageUrl"
+                fit="cover"
+                :preview-src-list="[scope.row.productImageUrl]"
+                preview-teleported
+                style="width: 56px; height: 56px; border-radius: 4px"
+              />
+              <div v-else class="no-image">无</div>
+            </template>
+          </el-table-column>
           <el-table-column prop="merchantName" label="商家名称" width="150" />
           <el-table-column prop="productName" label="商品名称" min-width="200" />
           <el-table-column prop="price" label="价格" width="100">
@@ -114,6 +127,17 @@
       <div v-loading="detailLoading" class="product-detail-content">
         <div class="detail-section">
           <h3>基本信息</h3>
+          <div class="detail-image">
+            <el-image
+              v-if="productDetail?.productImageUrl"
+              :src="productDetail.productImageUrl"
+              fit="contain"
+              :preview-src-list="[productDetail.productImageUrl]"
+              preview-teleported
+              style="width: 180px; height: 180px; border-radius: 6px"
+            />
+            <div v-else class="no-image detail-no-image">暂无商品图片</div>
+          </div>
           <el-descriptions :column="2" border>
             <el-descriptions-item label="商品ID">{{ productDetail?.id }}</el-descriptions-item>
             <el-descriptions-item label="商家ID">{{ productDetail?.merchantId }}</el-descriptions-item>
@@ -223,7 +247,7 @@ const hasSearchConditions = computed(() => {
 // 启用商品
 const handleEnableProduct = async (id: number) => {
   try {
-    const response = await setAdminProductStatus(id, currentPage.value)
+    const response = await setAdminProductStatus(id, 1)
     if (response.code === 1 || response.code === 200) {
       ElMessage.success(response.data || '启用商品成功')
       loadProductList()
@@ -238,7 +262,7 @@ const handleEnableProduct = async (id: number) => {
 // 禁用商品
 const handleDisableProduct = async (id: number) => {
   try {
-    const response = await setAdminProductStatus(id, currentPage.value)
+    const response = await setAdminProductStatus(id, 0)
     if (response.code === 1 || response.code === 200) {
       ElMessage.success(response.data || '禁用商品成功')
       loadProductList()
@@ -430,6 +454,29 @@ onMounted(() => {
   margin: 0 0 16px 0;
   padding-bottom: 8px;
   border-bottom: 1px solid #E4E7ED;
+}
+
+.no-image {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  border-radius: 4px;
+  color: #999;
+  font-size: 12px;
+}
+
+.detail-image {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.detail-no-image {
+  width: 180px;
+  height: 180px;
 }
 
 .description-content {

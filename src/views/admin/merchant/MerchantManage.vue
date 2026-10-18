@@ -12,11 +12,13 @@
           <el-form-item label="商家名称">
             <el-input v-model="searchForm.merchantName" placeholder="请输入商家名称" clearable />
           </el-form-item>
-          <el-form-item label="联系电话">
-            <el-input v-model="searchForm.phone" placeholder="请输入联系电话" clearable />
-          </el-form-item>
-          <el-form-item label="邮箱">
-            <el-input v-model="searchForm.email" placeholder="请输入邮箱" clearable />
+          <el-form-item label="状态">
+            <el-select v-model="searchForm.status" placeholder="全部状态" clearable style="width: 140px">
+              <el-option label="待审核" :value="0" />
+              <el-option label="正常" :value="1" />
+              <el-option label="关闭" :value="2" />
+              <el-option label="禁用" :value="3" />
+            </el-select>
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="handleSearch">查询</el-button>
@@ -30,11 +32,8 @@
           <el-tag v-if="searchForm.merchantName" closable @close="handleRemoveCondition('merchantName')" type="info">
             商家名称：{{ searchForm.merchantName }}
           </el-tag>
-          <el-tag v-if="searchForm.phone" closable @close="handleRemoveCondition('phone')" type="info">
-            联系电话：{{ searchForm.phone }}
-          </el-tag>
-          <el-tag v-if="searchForm.email" closable @close="handleRemoveCondition('email')" type="info">
-            邮箱：{{ searchForm.email }}
+          <el-tag v-if="searchForm.status !== undefined && searchForm.status !== null" closable @close="handleRemoveCondition('status')" type="info">
+            状态：{{ getStatusText(searchForm.status) }}
           </el-tag>
         </div>
       </div>
@@ -42,7 +41,6 @@
       <!-- 商家列表 -->
       <div class="merchant-list-section">
         <el-table v-loading="loading" :data="merchantList" style="width: 100%" border>
-          <el-table-column prop="merchantId" label="商家ID" width="80" sortable />
           <el-table-column prop="shopLogoUrl" label="店铺Logo" width="100">
             <template #default="scope">
               <el-image 
@@ -112,7 +110,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getMerchantList, setMerchantEnabled, setMerchantNotEnabled } from '@/api/user'
-import type { AdminGetMerchantByConditionDTO, AdminGetMerchantDVO, AdminGetMerchantDetailDVO } from '@/types'
+import type { AdminGetMerchantByConditionDTO, AdminGetMerchantDVO } from '@/types'
 
 // 加载状态
 const loading = ref(false)
@@ -128,17 +126,15 @@ const total = ref(0)
 // 查询表单
 const searchForm = ref<AdminGetMerchantByConditionDTO>({
   merchantName: '',
-  phone: '',
-  email: '',
+  status: undefined,
   pageNum: 1,
   pageSize: 10
 })
 
 // 判断是否有查询条件
 const hasSearchConditions = computed(() => {
-  return searchForm.value.merchantName !== '' || 
-         searchForm.value.phone !== '' ||
-         searchForm.value.email !== ''
+  return searchForm.value.merchantName !== '' ||
+         (searchForm.value.status !== undefined && searchForm.value.status !== null)
 })
 
 // 获取状态类型
@@ -179,6 +175,8 @@ const loadMerchantList = async () => {
   try {
     const response = await getMerchantList({
       ...searchForm.value,
+      merchantName: searchForm.value.merchantName || undefined,
+      status: searchForm.value.status ?? undefined,
       pageNum: currentPage.value,
       pageSize: pageSize.value
     })
@@ -217,8 +215,7 @@ const handleSearch = () => {
 const handleReset = () => {
   searchForm.value = {
     merchantName: '',
-    phone: '',
-    email: '',
+    status: undefined,
     pageNum: 1,
     pageSize: 10
   }
@@ -230,10 +227,8 @@ const handleReset = () => {
 const handleRemoveCondition = (field: string) => {
   if (field === 'merchantName') {
     searchForm.value.merchantName = ''
-  } else if (field === 'phone') {
-    searchForm.value.phone = ''
-  } else if (field === 'email') {
-    searchForm.value.email = ''
+  } else if (field === 'status') {
+    searchForm.value.status = undefined
   }
   handleSearch()
 }

@@ -8,47 +8,36 @@
     <div class="module-content">
       <!-- 查询条件 -->
       <div class="search-bar">
-        <el-form :inline="true" :model="searchForm">
-          <el-form-item label="用户ID">
-            <el-input v-model.number="searchForm.id" placeholder="请输入用户ID" clearable />
-          </el-form-item>
+        <el-form :inline="true" :model="searchForm" class="search-form">
           <el-form-item label="用户名">
-            <el-input v-model="searchForm.username" placeholder="请输入用户名" clearable />
-          </el-form-item>
-          <el-form-item label="手机号">
-            <el-input v-model="searchForm.phone" placeholder="请输入手机号" clearable />
+            <el-input v-model="searchForm.username" placeholder="请输入用户名" clearable style="width: 200px" />
           </el-form-item>
           <el-form-item label="邮箱">
-            <el-input v-model="searchForm.email" placeholder="请输入邮箱" clearable />
+            <el-input v-model="searchForm.email" placeholder="请输入邮箱" clearable style="width: 220px" />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="handleSearch">查询</el-button>
             <el-button @click="handleReset">重置</el-button>
           </el-form-item>
         </el-form>
-        
-        <!-- 已选择的查询条件 -->
-        <div v-if="hasSearchConditions" class="selected-conditions">
-          <span class="condition-label">已选条件：</span>
-          <el-tag v-if="searchForm.id" closable @close="handleRemoveCondition('id')" type="info">
-            用户ID：{{ searchForm.id }}
-          </el-tag>
-          <el-tag v-if="searchForm.username" closable @close="handleRemoveCondition('username')" type="info">
-            用户名：{{ searchForm.username }}
-          </el-tag>
-          <el-tag v-if="searchForm.phone" closable @close="handleRemoveCondition('phone')" type="info">
-            手机号：{{ searchForm.phone }}
-          </el-tag>
-          <el-tag v-if="searchForm.email" closable @close="handleRemoveCondition('email')" type="info">
-            邮箱：{{ searchForm.email }}
-          </el-tag>
+
+        <!-- 已选择的查询条件：固定高度，避免出现/消失时查询栏抖动 -->
+        <div class="selected-conditions">
+          <span v-if="hasSearchConditions" class="condition-label">已选条件：</span>
+          <template v-if="hasSearchConditions">
+            <el-tag v-if="searchForm.username" closable @close="handleRemoveCondition('username')" type="info">
+              用户名：{{ searchForm.username }}
+            </el-tag>
+            <el-tag v-if="searchForm.email" closable @close="handleRemoveCondition('email')" type="info">
+              邮箱：{{ searchForm.email }}
+            </el-tag>
+          </template>
         </div>
       </div>
       
       <!-- 用户列表 -->
       <div class="user-list-section">
         <el-table v-loading="loading" :data="userList" style="width: 100%" border>
-          <el-table-column prop="id" label="用户ID" width="80" sortable />
           <el-table-column prop="username" label="用户名" min-width="150" sortable />
           <el-table-column prop="phone" label="手机号" width="150" />
           <el-table-column prop="email" label="邮箱" min-width="200" />
@@ -63,10 +52,10 @@
           <el-table-column prop="createTime" label="创建时间" width="180" sortable />
           <el-table-column label="操作" width="150" fixed="right">
             <template #default="scope">
-              <el-button 
-                v-if="scope.row.status === 1" 
-                type="warning" 
-                size="small" 
+              <el-button
+                v-if="scope.row.status === 0"
+                type="warning"
+                size="small"
                 @click.stop="handleDisableUser(scope.row.id)"
               >
                 禁用
@@ -104,7 +93,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getUserList, setUserEnabled, setUserNotEnabled } from '@/api/user'
-import type { AdminGetUserByConditionDTO, AdminGetUserDVO, AdminGetUserDetailDVO } from '@/types'
+import type { AdminGetUserByConditionDTO, AdminGetUserDVO } from '@/types'
 
 // 加载状态
 const loading = ref(false)
@@ -119,9 +108,7 @@ const total = ref(0)
 
 // 查询表单
 const searchForm = ref<AdminGetUserByConditionDTO>({
-  id: undefined,
   username: '',
-  phone: '',
   email: '',
   pageNum: 1,
   pageSize: 10
@@ -129,30 +116,20 @@ const searchForm = ref<AdminGetUserByConditionDTO>({
 
 // 判断是否有查询条件
 const hasSearchConditions = computed(() => {
-  return searchForm.value.id !== undefined || 
-         searchForm.value.username !== '' || 
-         searchForm.value.phone !== '' || 
-         searchForm.value.email !== ''
+  return searchForm.value.username !== '' || searchForm.value.email !== ''
 })
 
-// 获取状态类型
+// 获取状态类型（用户：0=正常，1=禁用）
 const getStatusType = (status: number): string => {
-  switch (status) {
-    case 1:
-      return 'success'
-    case 0:
-      return 'info'
-    default:
-      return 'info'
-  }
+  return status === 1 ? 'danger' : 'success'
 }
 
 // 获取状态文本
 const getStatusText = (status: number): string => {
   switch (status) {
-    case 1:
-      return '启用'
     case 0:
+      return '正常'
+    case 1:
       return '禁用'
     default:
       return '未知'
@@ -165,6 +142,8 @@ const loadUserList = async () => {
   try {
     const response = await getUserList({
       ...searchForm.value,
+      username: searchForm.value.username || undefined,
+      email: searchForm.value.email || undefined,
       pageNum: currentPage.value,
       pageSize: pageSize.value
     })
@@ -202,9 +181,7 @@ const handleSearch = () => {
 // 重置查询条件
 const handleReset = () => {
   searchForm.value = {
-    id: undefined,
     username: '',
-    phone: '',
     email: '',
     pageNum: 1,
     pageSize: 10
@@ -215,12 +192,8 @@ const handleReset = () => {
 
 // 移除单个查询条件
 const handleRemoveCondition = (field: string) => {
-  if (field === 'id') {
-    searchForm.value.id = undefined
-  } else if (field === 'username') {
+  if (field === 'username') {
     searchForm.value.username = ''
-  } else if (field === 'phone') {
-    searchForm.value.phone = ''
   } else if (field === 'email') {
     searchForm.value.email = ''
   }
@@ -310,6 +283,7 @@ onMounted(() => {
 
 .selected-conditions {
   margin-top: 15px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;

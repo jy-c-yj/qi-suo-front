@@ -25,6 +25,10 @@ interface AppAuthConfig {
   refreshKeyKey: string
   /** 展示用名字的存储键 */
   nameKey: string
+  /** 登录账号 id 的存储键 */
+  idKey: string
+  /** 角色列表的存储键（JSON 字符串） */
+  rolesKey: string
   /** 该端的登录页 */
   loginPath: string
   /** 该端登录后的默认落地页 */
@@ -36,6 +40,8 @@ const APP_AUTH: Record<AuthApp, AppAuthConfig> = {
     tokenKey: 'userToken',
     refreshKeyKey: 'userRefreshTokenKey',
     nameKey: 'username',
+    idKey: 'userId',
+    rolesKey: 'userRoles',
     loginPath: '/login/user',
     homePath: '/home'
   },
@@ -43,6 +49,8 @@ const APP_AUTH: Record<AuthApp, AppAuthConfig> = {
     tokenKey: 'merchantToken',
     refreshKeyKey: 'merchantRefreshTokenKey',
     nameKey: 'merchantName',
+    idKey: 'merchantId',
+    rolesKey: 'merchantRoles',
     loginPath: '/login/merchant',
     homePath: '/merchant/dashboard'
   },
@@ -50,6 +58,8 @@ const APP_AUTH: Record<AuthApp, AppAuthConfig> = {
     tokenKey: 'adminToken',
     refreshKeyKey: 'adminRefreshTokenKey',
     nameKey: 'adminUsername',
+    idKey: 'adminId',
+    rolesKey: 'adminRoles',
     loginPath: '/login/admin',
     homePath: '/admin/image/background'
   }
@@ -117,11 +127,57 @@ export function hasSession(app: AuthApp = currentApp()): boolean {
  * 只写非空值：后端返回体异常时不要把 "undefined" 存进去，
  * 宁可缺 key（守卫会拦下）也不要存一个假 token。
  */
-export function saveSession(app: AuthApp, token: string, refreshKey: string, name?: string): void {
+export function saveSession(
+  app: AuthApp,
+  token: string,
+  refreshKey: string,
+  name?: string,
+  id?: number | null,
+  roles?: string[]
+): void {
   const config = APP_AUTH[app]
   if (token) localStorage.setItem(config.tokenKey, token)
   if (refreshKey) localStorage.setItem(config.refreshKeyKey, refreshKey)
   if (name) localStorage.setItem(config.nameKey, name)
+  if (id !== undefined && id !== null) localStorage.setItem(config.idKey, String(id))
+  if (roles && roles.length > 0) localStorage.setItem(config.rolesKey, JSON.stringify(roles))
+}
+
+/** 取某端的登录账号 id，没有则返回 null */
+export function getUserId(app: AuthApp = currentApp()): number | null {
+  const raw = localStorage.getItem(APP_AUTH[app].idKey)
+  if (!raw) return null
+  const id = Number(raw)
+  return Number.isFinite(id) ? id : null
+}
+
+/** 取某端的角色列表，没有则返回空数组 */
+export function getRoles(app: AuthApp = currentApp()): string[] {
+  const raw = localStorage.getItem(APP_AUTH[app].rolesKey)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((role): role is string => typeof role === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** 当前端是否拥有任一角色 */
+export function hasAnyRole(roles: string[], app: AuthApp = currentApp()): boolean {
+  const owned = getRoles(app)
+  return roles.some(role => owned.includes(role))
+}
+
+/**
+ * 管理员级别：3=系统管理员、2=超级管理员、1=普通管理员。
+ * 旧会话没有 roles 时按普通管理员降级，建议重新登录。
+ */
+export function getAdminType(app: AuthApp = 'admin'): number {
+  const roles = getRoles(app)
+  if (roles.includes('SystemADMIN') || roles.includes('system')) return 3
+  if (roles.includes('SuperAdmin')) return 2
+  return 1
 }
 
 /**
@@ -141,6 +197,8 @@ export function clearSession(app: AuthApp): void {
   localStorage.removeItem(config.tokenKey)
   localStorage.removeItem(config.refreshKeyKey)
   localStorage.removeItem(config.nameKey)
+  localStorage.removeItem(config.idKey)
+  localStorage.removeItem(config.rolesKey)
 }
 
 /** 某端的登录页路径 */

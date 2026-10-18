@@ -13,10 +13,15 @@
             <h3>店铺基本信息</h3>
           </div>
         </template>
-        <el-form ref="settingsFormRef" :model="settingsForm" :rules="settingsRules" class="settings-form">
+        <el-form
+          ref="settingsFormRef"
+          :model="settingsForm"
+          :rules="settingsRules"
+          label-width="110px"
+          class="settings-form"
+        >
           <!-- 店铺Logo上传 -->
-          <el-form-item prop="shopLogoUrl">
-            <label class="form-label">店铺Logo</label>
+          <el-form-item label="店铺Logo" prop="shopLogoUrl">
             <div class="logo-upload-container">
               <el-upload
                 class="logo-uploader"
@@ -32,32 +37,27 @@
                   <Plus />
                 </el-icon>
               </el-upload>
-              <p class="logo-hint">点击上传店铺Logo，支持 JPG、JPEG、PNG 格式</p>
+              <p class="logo-hint">点击上传店铺Logo，支持 JPG、JPEG、PNG 格式（上传后立即保存）</p>
             </div>
           </el-form-item>
 
-          <el-form-item prop="shopName">
-            <label class="form-label">店铺名称</label>
+          <el-form-item label="店铺名称" prop="shopName">
             <el-input v-model="settingsForm.shopName" placeholder="请输入店铺名称" clearable :maxlength="50" :show-word-limit="true" />
           </el-form-item>
 
-          <el-form-item prop="description">
-            <label class="form-label">店铺描述</label>
+          <el-form-item label="店铺描述" prop="description">
             <el-input v-model="settingsForm.description" type="textarea" placeholder="请输入店铺描述" :rows="3" clearable :maxlength="200" :show-word-limit="true" />
           </el-form-item>
 
-          <el-form-item prop="contactName">
-            <label class="form-label">联系人姓名</label>
+          <el-form-item label="联系人姓名" prop="contactName">
             <el-input v-model="settingsForm.contactName" placeholder="请输入联系人姓名" clearable :maxlength="20" :show-word-limit="true" />
           </el-form-item>
 
-          <el-form-item prop="contactPhone">
-            <label class="form-label">联系电话</label>
+          <el-form-item label="联系电话" prop="contactPhone">
             <el-input v-model="settingsForm.contactPhone" placeholder="请输入联系电话" clearable :maxlength="11" :show-word-limit="true" />
           </el-form-item>
 
-          <el-form-item prop="contactEmail">
-            <label class="form-label">联系邮箱</label>
+          <el-form-item label="联系邮箱" prop="contactEmail">
             <el-input v-model="settingsForm.contactEmail" placeholder="请输入联系邮箱" clearable :maxlength="50" :show-word-limit="true" />
           </el-form-item>
 
@@ -76,20 +76,23 @@
             <h3>密码设置</h3>
           </div>
         </template>
-        <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" class="settings-form">
-          <el-form-item prop="oldPassword">
-            <label class="form-label">旧密码</label>
-            <el-input v-model="passwordForm.oldPassword" type="password" placeholder="请输入旧密码" clearable />
+        <el-form
+          ref="passwordFormRef"
+          :model="passwordForm"
+          :rules="passwordRules"
+          label-width="110px"
+          class="settings-form"
+        >
+          <el-form-item label="旧密码" prop="oldPassword">
+            <el-input v-model="passwordForm.oldPassword" type="password" placeholder="请输入旧密码" show-password />
           </el-form-item>
 
-          <el-form-item prop="newPassword">
-            <label class="form-label">新密码</label>
-            <el-input v-model="passwordForm.newPassword" type="password" placeholder="请输入新密码" clearable />
+          <el-form-item label="新密码" prop="newPassword">
+            <el-input v-model="passwordForm.newPassword" type="password" placeholder="请输入新密码" show-password />
           </el-form-item>
 
-          <el-form-item prop="confirmPassword">
-            <label class="form-label">确认新密码</label>
-            <el-input v-model="passwordForm.confirmPassword" type="password" placeholder="请确认新密码" clearable />
+          <el-form-item label="确认新密码" prop="confirmPassword">
+            <el-input v-model="passwordForm.confirmPassword" type="password" placeholder="请确认新密码" show-password />
           </el-form-item>
 
           <el-form-item class="form-buttons">
@@ -105,7 +108,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { uploadFile, updateMerchantInformation, getMerchantInformation } from '@/api/user'
+import { uploadMerchantLogo, updateMerchantInformation, getMerchantInformation, changeMerchantPassword } from '@/api/user'
 
 // 表单引用
 const settingsFormRef = ref()
@@ -119,7 +122,6 @@ const loading = ref(false)
 const currentMerchantInfo = ref<{
   merchantId: number
   merchantName: string
-  merchantPassword: string
 } | null>(null)
 
 // 店铺设置表单
@@ -207,14 +209,16 @@ const beforeLogoUpload = (file: File) => {
   return true
 }
 
-// 上传Logo
+// 上传Logo：走后端商家接口，同时写库并返回新 URL
 const uploadLogo = async (options: any) => {
   const file = options.file
   try {
-    const response = await uploadFile(file)
-    if (response.code === 1 && response.msg) {
-      settingsForm.shopLogoUrl = response.msg
+    const response = await uploadMerchantLogo(file)
+    if (response.code === 1 && response.data) {
+      settingsForm.shopLogoUrl = response.data
       options.onSuccess(response)
+      // 通知外层布局刷新右上角 logo
+      window.dispatchEvent(new CustomEvent('merchant-profile-updated'))
     } else {
       throw new Error(response.msg || '上传Logo失败')
     }
@@ -247,7 +251,8 @@ const handleSaveSettings = async () => {
     const updateData = {
       merchantId: currentMerchantInfo.value?.merchantId || 0,
       merchantName: currentMerchantInfo.value?.merchantName || '',
-      merchantPassword: currentMerchantInfo.value?.merchantPassword || '',
+      // 密码只走 changePassword，这里留空，后端 SQL 会跳过
+      merchantPassword: '',
       shopName: settingsForm.shopName,
       shopLogoUrl: settingsForm.shopLogoUrl,
       description: settingsForm.description,
@@ -262,12 +267,16 @@ const handleSaveSettings = async () => {
     const response = await updateMerchantInformation(updateData)
     if (response.code === 1) {
       ElMessage.success('店铺设置保存成功')
+      window.dispatchEvent(new CustomEvent('merchant-profile-updated'))
     } else {
       ElMessage.error(response.msg || '保存店铺设置失败')
     }
   } catch (error: any) {
     console.error('保存店铺设置失败:', error)
-    ElMessage.error('保存店铺设置失败，请重试')
+    // 表单校验失败时 Element Plus 抛出的是校验结果，不要误报为接口失败
+    if (error?.message) {
+      ElMessage.error(error.message)
+    }
   }
 }
 
@@ -278,16 +287,25 @@ const handleChangePassword = async () => {
     const valid = await passwordFormRef.value.validate()
     if (!valid) return
 
-    // 这里可以调用后端API修改密码
-    console.log('修改密码:', passwordForm)
-    ElMessage.success('密码修改成功')
-    // 重置密码表单
-    passwordForm.oldPassword = ''
-    passwordForm.newPassword = ''
-    passwordForm.confirmPassword = ''
+    const response = await changeMerchantPassword({
+      oldPassword: passwordForm.oldPassword,
+      newPassword: passwordForm.newPassword
+    })
+    if (response.code === 1) {
+      ElMessage.success('密码修改成功')
+      // 重置密码表单
+      passwordForm.oldPassword = ''
+      passwordForm.newPassword = ''
+      passwordForm.confirmPassword = ''
+      passwordFormRef.value.resetFields()
+    } else {
+      ElMessage.error(response.msg || '密码修改失败')
+    }
   } catch (error: any) {
     console.error('修改密码失败:', error)
-    ElMessage.error('修改密码失败，请重试')
+    if (error?.message) {
+      ElMessage.error(error.message)
+    }
   }
 }
 
@@ -302,8 +320,7 @@ onMounted(async () => {
       // 保存商家基本信息，用于更新时使用
       currentMerchantInfo.value = {
         merchantId: merchantInfo.merchantId,
-        merchantName: merchantInfo.merchantName,
-        merchantPassword: merchantInfo.merchantPassword
+        merchantName: merchantInfo.merchantName
       }
       // 更新表单数据
       settingsForm.shopName = merchantInfo.shopName || ''
@@ -314,24 +331,10 @@ onMounted(async () => {
       settingsForm.shopLogoUrl = merchantInfo.shopLogoUrl || ''
     } else {
       ElMessage.error(response.msg || '获取店铺信息失败')
-      // 使用默认模拟数据
-      settingsForm.shopName = '栖所家居'
-      settingsForm.description = '专注于现代简约风格的家居用品，为您的生活增添美感'
-      settingsForm.contactName = '张三'
-      settingsForm.contactPhone = '13800138000'
-      settingsForm.contactEmail = 'contact@qisuo.com'
-      settingsForm.shopLogoUrl = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20home%20decor%20logo&image_size=square'
     }
   } catch (error: any) {
     console.error('获取店铺信息失败:', error)
-    ElMessage.error('获取店铺信息失败，请重试')
-    // 使用默认模拟数据
-    settingsForm.shopName = '栖所家居'
-    settingsForm.description = '专注于现代简约风格的家居用品，为您的生活增添美感'
-    settingsForm.contactName = '张三'
-    settingsForm.contactPhone = '13800138000'
-    settingsForm.contactEmail = 'contact@qisuo.com'
-    settingsForm.shopLogoUrl = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20home%20decor%20logo&image_size=square'
+    ElMessage.error(error.message || '获取店铺信息失败，请重试')
   } finally {
     loading.value = false
   }

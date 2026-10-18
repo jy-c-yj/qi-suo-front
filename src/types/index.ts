@@ -100,6 +100,22 @@ export interface AccessTokenDVO {
    * 刷新令牌键
    */
   refresh_token_key: string
+  /**
+   * 登录账号 id
+   */
+  id?: number
+  /**
+   * 角色列表，如 SystemADMIN / SuperAdmin / OrdinaryAdmin / Merchant / USER
+   */
+  roles?: string[]
+}
+
+/**
+ * 修改密码参数
+ */
+export interface ChangePasswordDTO {
+  oldPassword: string
+  newPassword: string
 }
 
 /**
@@ -227,13 +243,9 @@ export interface HomeBackgroundImageDVO {
  * 管理员DVO
  */
 export interface AdminDVO {
-  id: number
   adminId: number
-  username: string
   adminName: string
-  password: string
   phone: string
-  email: string
   status: number
   adminType: number
   createTime: string
@@ -248,39 +260,30 @@ export interface AdminDVO {
 export interface AdminQueryParams {
   pageNum: number
   pageSize: number
-  username?: string
-  phone?: string
-  email?: string
 }
 
 /**
  * 管理员DTO
  */
 export interface AdminDTO {
-  id: number
   adminId: number
-  username: string
-  adminName: string
-  password: string
-  phone: string
-  email: string
-  status: number
-  adminType: number
-  createTime: string
-  updateTime: string
-  createBy: string
-  updateBy: string
+  adminName?: string
+  phone?: string
+  status?: number
+  adminType?: number
+  createTime?: string
+  updateTime?: string
+  createBy?: string
+  updateBy?: string
 }
 
 /**
  * 新增管理员DTO
  */
 export interface NewAdminDTO {
-  username: string
   adminName: string
   password: string
   phone: string
-  email: string
   adminType: number
 }
 
@@ -292,11 +295,12 @@ export interface GetCategoryDVO {
   parentId: number
   name: string
   level: number
-  children: GetCategoryDVO[]
+  children?: GetCategoryDVO[]
   parentName?: string
-  categoryType?: number
+  /** 后端返回的是中文类型名 */
+  categoryType?: string
   path?: string
-  isActive?: number
+  isActive?: boolean
   createdAt?: string
   updatedAt?: string
 }
@@ -309,7 +313,7 @@ export interface GetCategoryByConditionDTO {
   name?: string
   level?: number
   categoryType?: number
-  isActive?: number
+  isActive?: boolean
   pageNum?: number
   pageSize?: number
 }
@@ -352,10 +356,12 @@ export interface AdminGetProductDVO {
   originalPrice: number
   stock: number
   salesCount: number
+  viewCount?: number
+  sku?: string
   status: number
-  merchantId: number
   merchantName: string
-  createTime: string
+  createdAt: string
+  updatedAt: string
 }
 
 /**
@@ -379,10 +385,13 @@ export interface AdminGetProductDetailDVO {
   merchantId: number
   merchantName: string
   categoryNames: string[]
+  categoryIds?: number[]
   attributeAndValues: {
+    attributeValueId?: number
     attributeName: string
     attributeValue: string
   }[]
+  attributeValueIds?: number[]
   createdAt: string
   updatedAt: string
 }
@@ -395,8 +404,8 @@ export interface AdminGetUserByConditionDTO {
   pageSize: number
   id?: number
   username?: string
-  phone?: string
   email?: string
+  status?: number
 }
 
 /**
@@ -408,6 +417,7 @@ export interface AdminGetUserDVO {
   imageUrl: string
   phone: string
   email: string
+  roleName: string
   status: number
   createTime: string
 }
@@ -432,22 +442,28 @@ export interface AdminGetUserDetailDVO {
 export interface AdminGetMerchantByConditionDTO {
   pageNum: number
   pageSize: number
+  id?: number
   merchantName?: string
-  phone?: string
-  email?: string
+  status?: number
 }
 
 /**
  * 管理员商家DVO
  */
 export interface AdminGetMerchantDVO {
-  id: number
+  merchantId: number
   merchantName: string
-  imageUrl: string
-  phone: string
-  email: string
+  shopName: string
+  shopLogoUrl: string
+  description: string
+  contactName: string
+  contactPhone: string
+  contactEmail: string
   status: number
   createTime: string
+  updateTime: string
+  createBy: string
+  updateBy: string
 }
 
 /**
@@ -506,8 +522,12 @@ export interface BackgroundGetProductDVO {
   originalPrice: number
   stock: number
   salesCount: number
+  viewCount?: number
+  sku?: string
   status: number
-  createTime: string
+  merchantName?: string
+  createdAt: string
+  updatedAt: string
 }
 
 /**
@@ -540,8 +560,8 @@ export interface CategoryDVO {
  */
 export interface AttributeDVO {
   id: number
-  name: string
-  productId: number
+  attributeName: string
+  attributeType?: number
 }
 
 /**
@@ -574,8 +594,7 @@ export interface DeleteProductCategoryDTO {
  */
 export interface NewProductAttributeValueDTO {
   productId: number
-  attributeName: string
-  attributeValue: string
+  attributeValueId: number
 }
 
 /**
@@ -661,7 +680,6 @@ export interface UserInformationUpdateDTO {
   imageUrl: string
   phone: string
   email: string
-  password?: string
 }
 
 /**
@@ -730,6 +748,18 @@ export interface CartDVO {
 }
 
 /**
+ * 购物车按商家分组后的展示对象
+ * 对应后端的 CartMerchantGroupDVO
+ */
+export interface CartMerchantGroupDVO {
+  merchantId: number
+  merchantName: string
+  items: CartDVO[]
+  totalPrice: number
+  totalQuantity: number
+}
+
+/**
  * 商品详情DVO
  * 对应后端的商品详情查询结果
  */
@@ -751,10 +781,13 @@ export interface BackgroundGetProductDetailDVO {
   merchantId: number
   merchantName: string
   categoryNames: string[]
+  categoryIds?: number[]
   attributeAndValues: {
+    attributeValueId?: number
     attributeName: string
     attributeValue: string
   }[]
+  attributeValueIds?: number[]
   createdAt: string
   updatedAt: string
 }

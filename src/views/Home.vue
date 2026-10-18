@@ -27,6 +27,10 @@
             <el-icon class="nav-icon"><Document /></el-icon>
             <span>我的订单</span>
           </div>
+          <div class="nav-item" @click="goToCart">
+            <el-icon class="nav-icon"><ShoppingCart /></el-icon>
+            <span>购物车</span>
+          </div>
         </div>
       </div>
     </header>
@@ -228,10 +232,11 @@ import {
   Warning,
   ArrowDown,
   ArrowRight,
-  Document
+  Document,
+  ShoppingCart
 } from '@element-plus/icons-vue'
 import { getHomeCategories, getHomeCarouselImageList, queryHotProduct } from '@/api/user'
-import { clearSession } from '@/utils/auth'
+import { logoutAndClear } from '@/utils/logout'
 import type { Category, HotProductDVO } from '@/types'
 
 const router = useRouter()
@@ -689,6 +694,11 @@ const goToOrders = () => {
   router.push('/user/orders')
 }
 
+// 跳转到购物车页面
+const goToCart = () => {
+  router.push('/user/cart')
+}
+
 // 处理搜索
 const handleSearch = () => {
   if (!searchKeyword.value.trim()) {
@@ -706,10 +716,9 @@ const goToHome = () => {
 }
 
 // 退出登录
-const handleLogout = () => {
-  // 原来漏了 userRefreshTokenKey（一个还有 7 天有效期的凭证），一并清掉
-  clearSession('user')
-  router.push('/login/user')
+const handleLogout = async () => {
+  // 注销后端刷新令牌，并清理本端全部凭证
+  await logoutAndClear('user')
 }
 
 // 页面挂载时获取分类数据、轮播图片和热门商品

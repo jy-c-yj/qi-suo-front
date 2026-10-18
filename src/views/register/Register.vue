@@ -242,7 +242,7 @@ const handleRegister = async () => {
   align-items: center;
   justify-content: center;
   position: relative;
-  background: url('http://localhost:9000/qisuo/zzz.png') no-repeat center center fixed;
+  background: url('/images/login-bg.svg') no-repeat center center fixed;
   background-size: cover;
 }
 

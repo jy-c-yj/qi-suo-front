@@ -106,7 +106,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { clearSession, getToken } from '@/utils/auth'
+import { getToken } from '@/utils/auth'
+import { logoutAndClear } from '@/utils/logout'
 import { ElMessage } from 'element-plus'
 import {
   Picture,
@@ -170,16 +171,11 @@ const updatePageTitle = () => {
 }
 
 // 处理退出登录
-const handleLogout = () => {
-  // 清除登录状态（只清管理端，另外两端的登录态不受影响）；
+const handleLogout = async () => {
   // activeAdminMenu 是界面残留，顺手清掉
-  clearSession('admin')
   localStorage.removeItem('activeAdminMenu')
-  
-  ElMessage.success('退出登录成功')
-  
-  // 跳转到登录页面
-  router.push('/login/admin')
+  // 注销后端刷新令牌，并在 finally 里清管理端会话、跳登录页
+  await logoutAndClear('admin')
 }
 
 // 组件挂载时初始化

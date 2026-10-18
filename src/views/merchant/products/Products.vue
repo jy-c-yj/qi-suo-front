@@ -41,7 +41,20 @@
     <div class="product-list">
       <el-card class="list-card">
         <el-table :data="productList" style="width: 100%" v-loading="loading">
-          <el-table-column prop="id" label="商品ID" width="100" />
+          <el-table-column label="商品图片" width="100">
+            <template #default="scope">
+              <el-image
+                v-if="scope.row.productImageUrl"
+                :src="scope.row.productImageUrl"
+                :preview-src-list="[scope.row.productImageUrl]"
+                preview-teleported
+                fit="cover"
+                class="table-product-image"
+              />
+              <span v-else class="no-image">暂无</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="id" label="商品ID" width="90" />
           <el-table-column prop="productName" label="商品名称" />
           <el-table-column prop="price" label="价格" width="100">
             <template #default="scope">
@@ -58,15 +71,17 @@
             </template>
           </el-table-column>
           <el-table-column prop="createdAt" label="创建时间" width="180" />
-          <el-table-column label="操作" width="280">
+          <el-table-column label="操作" width="240">
             <template #default="scope">
               <el-button type="info" size="small" @click="handleViewDetail(scope.row)">
                 详情
               </el-button>
-              <el-button type="primary" size="small" @click="handleEditProduct(scope.row)">
-                编辑
-              </el-button>
-              <el-button type="success" size="small" @click="handleToggleStatus(scope.row)">
+              <!-- 当前上架 -> 下架（警示色）；当前下架 -> 上架（成功色） -->
+              <el-button
+                :type="scope.row.status === 1 ? 'warning' : 'success'"
+                size="small"
+                @click="handleToggleStatus(scope.row)"
+              >
                 {{ scope.row.status === 1 ? '下架' : '上架' }}
               </el-button>
               <el-button type="danger" size="small" @click="handleDeleteProduct(scope.row.id)">
@@ -91,18 +106,88 @@
       </el-card>
     </div>
 
-    <!-- 商品详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="商品详情" width="800px">
+    <!-- 商品详情对话框：详情卡片内直接编辑商品信息 -->
+    <el-dialog v-model="detailDialogVisible" title="商品详情" width="820px">
       <div v-if="productDetail" class="product-detail">
-        <el-descriptions :column="2" border>
+        <el-form
+          ref="detailFormRef"
+          :model="productDetail"
+          :rules="editRules"
+          label-width="100px"
+        >
+          <el-form-item label="商品图片">
+            <div class="image-upload">
+              <el-upload
+                class="avatar-uploader"
+                :action="`${API_BASE_URL}/file/upload`"
+                :show-file-list="false"
+                :on-success="handleDetailImageSuccess"
+                :on-error="handleImageUploadError"
+                :before-upload="beforeImageUpload"
+              >
+                <img
+                  v-if="productDetail.productImageUrl"
+                  :src="productDetail.productImageUrl"
+                  class="avatar"
+                />
+                <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+              </el-upload>
+              <el-input
+                v-model="productDetail.productImageUrl"
+                placeholder="图片URL"
+                style="margin-top: 10px;"
+              />
+            </div>
+          </el-form-item>
+
+          <el-form-item label="商品名称" prop="productName">
+            <el-input v-model="productDetail.productName" placeholder="请输入商品名称" />
+          </el-form-item>
+
+          <el-form-item label="商品描述" prop="description">
+            <el-input
+              v-model="productDetail.description"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入商品描述"
+            />
+          </el-form-item>
+
+          <el-form-item label="价格" prop="price">
+            <el-input-number
+              v-model="productDetail.price"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+            />
+          </el-form-item>
+
+          <el-form-item label="原价" prop="originalPrice">
+            <el-input-number
+              v-model="productDetail.originalPrice"
+              :min="0"
+              :precision="2"
+              :step="0.01"
+            />
+          </el-form-item>
+
+          <el-form-item label="库存" prop="stock">
+            <el-input-number v-model="productDetail.stock" :min="0" />
+          </el-form-item>
+
+          <el-form-item label="是否热门">
+            <el-switch v-model="productDetail.isHot" />
+          </el-form-item>
+
+          <el-form-item label="是否新品">
+            <el-switch v-model="productDetail.isNew" />
+          </el-form-item>
+        </el-form>
+
+        <el-descriptions :column="2" border class="detail-descriptions">
           <el-descriptions-item label="商品ID">{{ productDetail.id }}</el-descriptions-item>
-          <el-descriptions-item label="商家ID">{{ productDetail.merchantId }}</el-descriptions-item>
-          <el-descriptions-item label="商品名称" :span="2">{{ productDetail.productName }}</el-descriptions-item>
           <el-descriptions-item label="商家名称">{{ productDetail.merchantName }}</el-descriptions-item>
           <el-descriptions-item label="SKU">{{ productDetail.sku }}</el-descriptions-item>
-          <el-descriptions-item label="价格">¥{{ productDetail.price }}</el-descriptions-item>
-          <el-descriptions-item label="原价">¥{{ productDetail.originalPrice }}</el-descriptions-item>
-          <el-descriptions-item label="库存">{{ productDetail.stock }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="productDetail.status === 1 ? 'success' : 'info'">
               {{ productDetail.status === 1 ? '上架' : '下架' }}
@@ -111,31 +196,8 @@
           <el-descriptions-item label="评分">{{ productDetail.rating }}</el-descriptions-item>
           <el-descriptions-item label="销量">{{ productDetail.salesCount }}</el-descriptions-item>
           <el-descriptions-item label="浏览量">{{ productDetail.viewCount }}</el-descriptions-item>
-          <el-descriptions-item label="是否热门">
-            <el-tag :type="productDetail.isHot ? 'danger' : 'info'">
-              {{ productDetail.isHot ? '是' : '否' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="是否新品">
-            <el-tag :type="productDetail.isNew ? 'success' : 'info'">
-              {{ productDetail.isNew ? '是' : '否' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ productDetail.createdAt }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ productDetail.updatedAt }}</el-descriptions-item>
         </el-descriptions>
-
-        <div class="detail-section">
-          <h4>商品描述</h4>
-          <p>{{ productDetail.description }}</p>
-        </div>
-
-        <div class="detail-section">
-          <h4>商品分类</h4>
-          <el-tag v-for="category in productDetail.categoryNames" :key="category" style="margin-right: 8px; margin-bottom: 8px;">
-            {{ category }}
-          </el-tag>
-        </div>
 
         <div class="detail-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -146,10 +208,10 @@
             <el-tag style="margin-right: 4px;">
               {{ category }}
             </el-tag>
-            <el-button 
-              size="small" 
-              type="danger" 
-              circle 
+            <el-button
+              size="small"
+              type="danger"
+              circle
               @click="handleDeleteCategory(category)"
               style="margin-right: 8px;"
             >
@@ -168,9 +230,9 @@
             <el-table-column prop="attributeValue" label="属性值" />
             <el-table-column label="操作" width="100">
               <template #default="scope">
-                <el-button 
-                  size="small" 
-                  type="danger" 
+                <el-button
+                  size="small"
+                  type="danger"
                   @click="handleDeleteAttribute(scope.row)"
                 >
                   <el-icon><Minus /></el-icon>
@@ -183,37 +245,9 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailDialogVisible = false">关闭</el-button>
-          <el-button type="primary" @click="handleEditFromDetail">编辑商品</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 编辑商品对话框 -->
-    <el-dialog v-model="editDialogVisible" title="编辑商品" width="600px">
-      <el-form v-if="editForm" :model="editForm" :rules="editRules" ref="editFormRef" label-width="100px">
-        <el-form-item label="商品名称" prop="productName">
-          <el-input v-model="editForm.productName" placeholder="请输入商品名称" />
-        </el-form-item>
-        <el-form-item label="商品描述" prop="description">
-          <el-input v-model="editForm.description" type="textarea" :rows="4" placeholder="请输入商品描述" />
-        </el-form-item>
-        <el-form-item label="价格" prop="price">
-          <el-input-number v-model="editForm.price" :min="0" :precision="2" :step="0.01" />
-        </el-form-item>
-        <el-form-item label="原价" prop="originalPrice">
-          <el-input-number v-model="editForm.originalPrice" :min="0" :precision="2" :step="0.01" />
-        </el-form-item>
-        <el-form-item label="库存" prop="stock">
-          <el-input-number v-model="editForm.stock" :min="0" />
-        </el-form-item>
-        <el-form-item label="是否新品" prop="isNew">
-          <el-switch v-model="editForm.isNew" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="editDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSaveEdit">保存</el-button>
+          <el-button type="primary" :loading="detailSaving" @click="handleSaveDetail">
+            保存修改
+          </el-button>
         </span>
       </template>
     </el-dialog>
@@ -266,12 +300,12 @@
               <el-option
                 v-for="attribute in attributes"
                 :key="attribute.id"
-                :label="attribute.name"
+                :label="attribute.attributeName"
                 :value="attribute.id"
               />
             </el-select>
           </el-form-item>
-          
+
           <el-form-item label="选择属性值">
             <el-select
               v-model="selectedAttributeValues"
@@ -320,7 +354,7 @@
           <div class="image-upload">
             <el-upload
               class="avatar-uploader"
-              action="http://localhost:8080/api/file/upload"
+              :action="`${API_BASE_URL}/file/upload`"
               :show-file-list="false"
               :on-success="handleImageUploadSuccess"
               :on-error="handleImageUploadError"
@@ -348,7 +382,15 @@
         <el-form-item label="原价" prop="originalPrice">
           <el-input-number v-model="addForm.originalPrice" :min="0" :precision="2" :step="0.01" />
         </el-form-item>
-        
+
+        <el-form-item label="是否热门">
+          <el-switch v-model="addForm.isHot" />
+        </el-form-item>
+
+        <el-form-item label="是否新品">
+          <el-switch v-model="addForm.isNew" />
+        </el-form-item>
+
         <el-form-item label="商品分类" prop="categoryIds">
           <el-select
             v-model="addForm.categoryIds"
@@ -375,11 +417,11 @@
             <el-option
               v-for="attribute in attributes"
               :key="attribute.id"
-              :label="attribute.name"
+              :label="attribute.attributeName"
               :value="attribute.id"
             />
           </el-select>
-          
+
           <el-select
             v-model="addSelectedAttributeValues"
             multiple
@@ -422,7 +464,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Minus } from '@element-plus/icons-vue'
-import { getMerchantProductList, getMerchantProductDetail, setProductStatus, deleteProduct, updateProduct, getCategories, getAttributes, getAttributeValues, addProductCategory, deleteProductCategory, addProductAttributeValue, deleteProductAttributeValue, newProduct } from '@/api/user'
+import { API_BASE_URL, getMerchantProductList, getMerchantProductDetail, setProductStatus, deleteProduct, updateProduct, getCategories, getAttributes, getAttributeValues, addProductCategory, deleteProductCategory, addProductAttributeValue, deleteProductAttributeValue, newProduct } from '@/api/user'
 import type { BackgroundGetProductByConditionDTO, BackgroundGetProductDVO, BackgroundGetProductDetailDVO, MerchantUpdateProductFormDTO, CategoryDVO, AttributeDVO, AttributeValueDVO, NewProductCategoryDTO, DeleteProductCategoryDTO, NewProductAttributeValueDTO, DeleteProductAttributeValueDTO, NewProductDTO } from '@/types'
 
 // 加载状态
@@ -442,14 +484,11 @@ const total = ref(0)
 // 商品列表
 const productList = ref<BackgroundGetProductDVO[]>([])
 
-// 商品详情对话框
+// 商品详情对话框（卡片内直接编辑）
 const detailDialogVisible = ref(false)
+const detailSaving = ref(false)
+const detailFormRef = ref()
 const productDetail = ref<BackgroundGetProductDetailDVO | null>(null)
-
-// 编辑商品对话框
-const editDialogVisible = ref(false)
-const editFormRef = ref()
-const editForm = ref<MerchantUpdateProductFormDTO | null>(null)
 
 // 编辑表单验证规则
 const editRules = {
@@ -532,6 +571,8 @@ const fetchProductList = async () => {
   try {
     const params: BackgroundGetProductByConditionDTO = {
       productName: searchForm.value.productName || undefined,
+      // 下拉框存的是字符串，后端要 Integer；空值不传
+      status: searchForm.value.status === '' ? undefined : Number(searchForm.value.status),
       pageNum: currentPage.value,
       pageSize: pageSize.value
     }
@@ -569,69 +610,47 @@ const resetSearch = () => {
 
 
 
-// 编辑商品
-const handleEditProduct = async (product: any) => {
-  console.log('编辑商品:', product)
-  try {
-    const response = await getMerchantProductDetail(product.id)
-    if (response.code === 1 && response.data) {
-      editForm.value = {
-        id: response.data.id,
-        productName: response.data.productName,
-        description: response.data.description,
-        price: response.data.price,
-        stock: response.data.stock,
-        originalPrice: response.data.originalPrice,
-        isNew: response.data.isNew,
-        isHot: response.data.isHot,
-        productImageUrl: response.data.productImageUrl
-      }
-      editDialogVisible.value = true
-    } else {
-      ElMessage.error(response.msg || '获取商品详情失败')
-    }
-  } catch (error: any) {
-    console.error('获取商品详情失败:', error)
-    ElMessage.error(error.message || '获取商品详情失败')
-  }
-}
+// 详情卡片内保存商品信息
+const handleSaveDetail = async () => {
+  if (!detailFormRef.value || !productDetail.value) return
 
-// 从详情对话框编辑商品
-const handleEditFromDetail = () => {
-  if (productDetail.value) {
-    editForm.value = {
-      id: productDetail.value.id,
-      productName: productDetail.value.productName,
-      description: productDetail.value.description,
-      price: productDetail.value.price,
-      stock: productDetail.value.stock,
-      originalPrice: productDetail.value.originalPrice,
-      isNew: productDetail.value.isNew,
-      isHot: productDetail.value.isHot,
-      productImageUrl: productDetail.value.productImageUrl
-    }
-    detailDialogVisible.value = false
-    editDialogVisible.value = true
-  }
-}
-
-// 保存编辑
-const handleSaveEdit = async () => {
-  if (!editFormRef.value || !editForm.value) return
-  
   try {
-    await editFormRef.value.validate()
-    const response = await updateProduct(editForm.value)
+    await detailFormRef.value.validate()
+  } catch {
+    return
+  }
+
+  const form: MerchantUpdateProductFormDTO = {
+    id: productDetail.value.id,
+    productName: productDetail.value.productName,
+    description: productDetail.value.description,
+    price: productDetail.value.price,
+    stock: productDetail.value.stock,
+    originalPrice: productDetail.value.originalPrice,
+    isNew: productDetail.value.isNew,
+    isHot: productDetail.value.isHot,
+    productImageUrl: productDetail.value.productImageUrl
+  }
+
+  detailSaving.value = true
+  try {
+    const response = await updateProduct(form)
     if (response.code === 1) {
       ElMessage.success('商品更新成功')
-      editDialogVisible.value = false
       fetchProductList()
+      // 重新拉一次详情，显示后端计算后的更新时间
+      const detailResponse = await getMerchantProductDetail(form.id)
+      if (detailResponse.code === 1 && detailResponse.data) {
+        productDetail.value = detailResponse.data
+      }
     } else {
       ElMessage.error(response.msg || '商品更新失败')
     }
   } catch (error: any) {
     console.error('商品更新失败:', error)
     ElMessage.error(error.message || '商品更新失败')
+  } finally {
+    detailSaving.value = false
   }
 }
 
@@ -644,9 +663,8 @@ const handleEditCategories = async () => {
     const response = await getCategories()
     if (response.code === 1 && response.data) {
       categories.value = response.data
-      // 这里可以根据商品当前分类进行初始化
-      // 暂时为空，用户需要重新选择
-      selectedCategories.value = []
+      // 回显商品当前已绑定的分类
+      selectedCategories.value = [...(productDetail.value.categoryIds || [])]
       categoryDialogVisible.value = true
     } else {
       ElMessage.error(response.msg || '获取分类失败')
@@ -668,7 +686,8 @@ const handleEditAttributes = async () => {
       attributes.value = response.data
       selectedAttributeId.value = 0
       attributeValues.value = []
-      selectedAttributeValues.value = []
+      // 回显商品当前已绑定的属性值
+      selectedAttributeValues.value = [...(productDetail.value.attributeValueIds || [])]
       attributeDialogVisible.value = true
     } else {
       ElMessage.error(response.msg || '获取属性失败')
@@ -848,7 +867,7 @@ const handleDeleteAttribute = async (attributeItem: any) => {
     }
     
     // 查找属性ID
-    const attribute = attributes.value.find(a => a.name === attributeItem.attributeName)
+    const attribute = attributes.value.find(a => a.attributeName === attributeItem.attributeName)
     if (!attribute) {
       ElMessage.error('未找到对应属性')
       return
@@ -903,10 +922,10 @@ const handleSaveCategories = async () => {
   if (!productDetail.value) return
   
   try {
-    // 先删除所有现有分类
-    // 这里需要获取商品当前的分类，然后逐个删除
-    // 暂时简化处理，直接添加新分类
-    for (const categoryId of selectedCategories.value) {
+    // 只新增尚未绑定的分类；取消绑定走详情里的删除按钮
+    const currentIds = productDetail.value.categoryIds || []
+    const newIds = selectedCategories.value.filter(id => !currentIds.includes(id))
+    for (const categoryId of newIds) {
       const data: NewProductCategoryDTO = {
         productId: productDetail.value.id,
         categoryId
@@ -934,21 +953,18 @@ const handleSaveAttributes = async () => {
   if (!productDetail.value) return
   
   try {
-    for (const attributeValueId of selectedAttributeValues.value) {
+    // 只新增尚未绑定的属性值
+    const currentIds = productDetail.value.attributeValueIds || []
+    const newValueIds = selectedAttributeValues.value.filter(id => !currentIds.includes(id))
+    for (const attributeValueId of newValueIds) {
       const attributeValue = attributeValues.value.find(v => v.id === attributeValueId)
       if (!attributeValue) {
         throw new Error('未找到属性值')
       }
-      
-      const attribute = attributes.value.find(a => a.id === attributeValue.attributeId)
-      if (!attribute) {
-        throw new Error('未找到属性')
-      }
-      
+
       const data: NewProductAttributeValueDTO = {
         productId: productDetail.value.id,
-        attributeName: attribute.name,
-        attributeValue: attributeValue.value
+        attributeValueId
       }
       const response = await addProductAttributeValue(data)
       if (response.code !== 1) {
@@ -987,12 +1003,13 @@ const handleViewDetail = async (product: any) => {
 
 // 切换商品状态
 const handleToggleStatus = async (product: any) => {
-  console.log('切换商品状态:', product)
+  // 显式传目标状态，不依赖后端的 toggle
+  const targetStatus = product.status === 1 ? 0 : 1
   try {
-    const response = await setProductStatus(product.id)
+    const response = await setProductStatus(product.id, targetStatus)
     if (response.code === 1) {
-      product.status = product.status === 1 ? 0 : 1
-      ElMessage.success(`商品${product.status === 1 ? '上架' : '下架'}成功`)
+      product.status = targetStatus
+      ElMessage.success(`商品${targetStatus === 1 ? '上架' : '下架'}成功`)
     } else {
       ElMessage.error(response.msg || '操作失败')
     }
@@ -1078,13 +1095,25 @@ const handleAddProduct = async () => {
   }
 }
 
-// 图片上传成功处理
+// 图片上传成功处理：文件服务把 URL 放在 data 里（Result.success(String) 的坑）
 const handleImageUploadSuccess = (response: any) => {
-  if (response.code === 1 ) {
-    addForm.value.productImageUrl = response.msg
+  if (response.code === 1 && response.data) {
+    addForm.value.productImageUrl = response.data
     ElMessage.success('图片上传成功')
   } else {
-    ElMessage.error(response.msg  + '图片上传失败' || '图片上传失败')
+    ElMessage.error(response.msg || '图片上传失败')
+  }
+}
+
+// 详情卡片里替换商品图片
+const handleDetailImageSuccess = (response: any) => {
+  if (response.code === 1 && response.data) {
+    if (productDetail.value) {
+      productDetail.value.productImageUrl = response.data
+    }
+    ElMessage.success('图片上传成功，保存后生效')
+  } else {
+    ElMessage.error(response.msg || '图片上传失败')
   }
 }
 
@@ -1180,6 +1209,22 @@ onMounted(() => {
 /* 商品列表 */
 .product-list {
   margin-bottom: 20px;
+}
+
+.table-product-image {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  display: block;
+}
+
+.no-image {
+  color: #909399;
+  font-size: 12px;
+}
+
+.detail-descriptions {
+  margin-top: 16px;
 }
 
 .list-card {

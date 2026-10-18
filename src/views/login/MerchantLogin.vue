@@ -181,10 +181,10 @@ const loadLoginBackgroundImage = async () => {
     if (response.code === 1 && response.data && response.data.url) {
       backgroundImageUrl.value = response.data.url
     } else {
-      backgroundImageUrl.value = 'http://127.0.0.1:9000/qisuo/0e1cc528-d05f-4b28-b551-b16dd1e45c33.jpg'
+      backgroundImageUrl.value = `${import.meta.env.BASE_URL}images/login-bg.svg`
     }
   } catch (error) {
-    backgroundImageUrl.value = 'http://127.0.0.1:9000/qisuo/0e1cc528-d05f-4b28-b551-b16dd1e45c33.jpg'
+    backgroundImageUrl.value = `${import.meta.env.BASE_URL}images/login-bg.svg`
   }
 }
 
@@ -198,10 +198,13 @@ const handleLogin = async () => {
     if (loading.value) return
     loading.value = true
 
-    await verifyCaptcha({
+    const verifyResult = await verifyCaptcha({
       inputCode: loginForm.inputCode,
       captchaID: captchaID.value
     })
+    if (verifyResult.code !== 1) {
+      throw new Error(verifyResult.msg || '验证码校验失败')
+    }
 
     const response = await merchantLogin({
       merchantName: loginForm.merchantName,
@@ -225,10 +228,10 @@ const handleLogin = async () => {
     console.error('登录失败:', error)
     const errorMessage = error.response?.data?.msg || error.message || '登录失败，请检查输入信息'
     ElMessage.error(errorMessage)
-    if (errorMessage.includes('验证码')) {
-      refreshCaptcha()
-      loginForm.inputCode = ''
-    }
+    // 验证码校验通过后即作废；任何一次登录失败都换一张，
+    // 避免重试时继续使用已经被消费的 captchaID
+    refreshCaptcha()
+    loginForm.inputCode = ''
   } finally {
     loading.value = false
   }

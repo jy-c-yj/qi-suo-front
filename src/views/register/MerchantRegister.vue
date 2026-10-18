@@ -280,12 +280,12 @@ const loadRegisterBackgroundImage = async () => {
     } else {
       console.error('获取注册背景图片失败:', response.msg)
       // 如果获取失败，使用默认背景图片
-      backgroundImageUrl.value = 'http://127.0.0.1:9000/qisuo/0e1cc528-d05f-4b28-b551-b16dd1e45c33.jpg'
+      backgroundImageUrl.value = `${import.meta.env.BASE_URL}images/login-bg.svg`
     }
   } catch (error) {
     console.error('获取注册背景图片失败:', error)
     // 如果获取失败，使用默认背景图片
-    backgroundImageUrl.value = 'http://127.0.0.1:9000/qisuo/0e1cc528-d05f-4b28-b551-b16dd1e45c33.jpg'
+    backgroundImageUrl.value = `${import.meta.env.BASE_URL}images/login-bg.svg`
   }
 }
 

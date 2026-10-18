@@ -1,11 +1,17 @@
 import axios from 'axios'
-import type { UserLoginDTO, AdminLoginDTO, MerchantLoginDTO, KaptchaDTO, KaptchaDVO, Result, AccessTokenDVO, UserRegisterDTO, CarouselImage, CarouselImageDetailsDTO, ImageQueryParams, ImageUploadResponse, PageResult, HomeBackgroundImageDVO, AdminDVO, AdminQueryParams, AdminDTO, NewAdminDTO, GetCategoryDVO, GetCategoryByConditionDTO, NewCategoryDTO, AdminGetProductByConditionDTO, AdminGetProductDVO, AdminGetProductDetailDVO, AdminGetUserByConditionDTO, AdminGetUserDVO, AdminGetUserDetailDVO, AdminGetMerchantByConditionDTO, AdminGetMerchantDVO, AdminGetMerchantDetailDVO, MerchantRegisterDTO, BackgroundGetProductByConditionDTO, BackgroundGetProductDVO, BackgroundGetProductDetailDVO, MerchantUpdateProductFormDTO, CategoryDVO, AttributeDVO, AttributeValueDVO, NewProductCategoryDTO, DeleteProductCategoryDTO, NewProductAttributeValueDTO, DeleteProductAttributeValueDTO, NewProductDTO, UpdateMerchantInformationFormDTO, MerchantInformationDVO, UserInformationDVO, UserInformationUpdateDTO, HotProductDVO, QueryProductByConditionDTO, QueryProductDVO, CartDVO, UserAddressDVO, UserAddressDTO, CreateOrderDTO, UserOrdersDetailDVO, UserOrdersDVO, MerchantOrdersDVO } from '@/types'
+import type { UserLoginDTO, AdminLoginDTO, MerchantLoginDTO, KaptchaDTO, KaptchaDVO, Result, AccessTokenDVO, UserRegisterDTO, CarouselImage, CarouselImageDetailsDTO, ImageQueryParams, ImageUploadResponse, PageResult, HomeBackgroundImageDVO, AdminDVO, AdminQueryParams, AdminDTO, NewAdminDTO, GetCategoryDVO, GetCategoryByConditionDTO, NewCategoryDTO, AdminGetProductByConditionDTO, AdminGetProductDVO, AdminGetProductDetailDVO, AdminGetUserByConditionDTO, AdminGetUserDVO, AdminGetUserDetailDVO, AdminGetMerchantByConditionDTO, AdminGetMerchantDVO, AdminGetMerchantDetailDVO, MerchantRegisterDTO, BackgroundGetProductByConditionDTO, BackgroundGetProductDVO, BackgroundGetProductDetailDVO, MerchantUpdateProductFormDTO, CategoryDVO, AttributeDVO, AttributeValueDVO, NewProductCategoryDTO, DeleteProductCategoryDTO, NewProductAttributeValueDTO, DeleteProductAttributeValueDTO, NewProductDTO, UpdateMerchantInformationFormDTO, MerchantInformationDVO, UserInformationDVO, UserInformationUpdateDTO, HotProductDVO, QueryProductByConditionDTO, QueryProductDVO, CartDVO, CartMerchantGroupDVO, UserAddressDVO, UserAddressDTO, CreateOrderDTO, UserOrdersDetailDVO, UserOrdersDVO, MerchantOrdersDVO, ChangePasswordDTO } from '@/types'
 import { currentApp, getToken, getRefreshKey, saveAccessToken, clearSession, loginPathOf } from '@/utils/auth'
 import type { AuthApp } from '@/utils/auth'
 
+// 接口基础路径：
+//   dev  -> Vite server.proxy 把 /api 转发到本地网关
+//   prod -> Nginx 把 /api 反向代理到网关
+// 两边都用相对路径，浏览器看到的是同源请求，不需要处理 CORS。
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+
 // 创建axios实例
 const request = axios.create({
-  baseURL: 'http://localhost:8080/api', // 接口基础路径
+  baseURL: API_BASE_URL,
   timeout: 30000 // 请求超时时间
 })
 
@@ -13,7 +19,7 @@ const request = axios.create({
 // 这样刷新接口自己失败时不可能再进 handleTokenExpired 造成死循环。
 // 超时给短一些，免得一个卡住的刷新请求拖住所有排队的 401。
 const refreshClient = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: API_BASE_URL,
   timeout: 10000
 })
 
@@ -92,12 +98,13 @@ export const getUserInfo = (): Promise<Result<any>> => {
 }
 
 /**
- * 用户登出接口
+ * 退出登录接口（三端共用）：
+ * 后端按令牌里的身份删除对应的 Redis 刷新令牌 key。
  * @returns Promise<Result<string>>
  */
 export const logout = (): Promise<Result<string>> => {
   return request({
-    url: '/auth/user/logout',
+    url: '/auth/logout',
     method: 'POST'
   })
 }
@@ -497,11 +504,11 @@ export const getMerchantProductDetail = (id: number): Promise<Result<BackgroundG
  * @param productId 商品ID
  * @returns Promise<Result<string>>
  */
-export const setProductStatus = (productId: number): Promise<Result<string>> => {
+export const setProductStatus = (productId: number, status?: number): Promise<Result<string>> => {
   return request({
     url: '/merchant/product/setStatus',
     method: 'PUT',
-    params: { productId }
+    params: { productId, status }
   })
 }
 
@@ -541,7 +548,7 @@ export const updateProduct = (data: MerchantUpdateProductFormDTO): Promise<Resul
  */
 export const getCategories = (): Promise<Result<CategoryDVO[]>> => {
   return request({
-    url: '/admin/CategoryAndAttribute/getCategory',
+    url: '/merchant/product/getCategory',
     method: 'GET'
   })
 }
@@ -552,7 +559,7 @@ export const getCategories = (): Promise<Result<CategoryDVO[]>> => {
  */
 export const getAttributes = (): Promise<Result<AttributeDVO[]>> => {
   return request({
-    url: '/admin/CategoryAndAttribute/getAttribute',
+    url: '/merchant/product/getAttribute',
     method: 'GET'
   })
 }
@@ -564,7 +571,7 @@ export const getAttributes = (): Promise<Result<AttributeDVO[]>> => {
  */
 export const getAttributeValues = (id: number): Promise<Result<AttributeValueDVO[]>> => {
   return request({
-    url: `/admin/CategoryAndAttribute/getAttribute/value/${id}`,
+    url: `/merchant/product/getAttributeValue/${id}`,
     method: 'GET'
   })
 }
@@ -644,7 +651,8 @@ request.interceptors.request.use(
       '/auth/user/login',
       '/auth/admin/login',
       '/auth/merchant/login',
-      '/user/home/getBackGroundImage'
+      '/user/home/getBackGroundImage',
+      '/file/image/getNowHomeBackGroundImage'
     ]
     
     // 检查当前请求是否需要token
@@ -1079,16 +1087,16 @@ export const getProductDetail = (id: number): Promise<Result<AdminGetProductDeta
 }
 
 /**
- * 设置商品状态（管理员端）
+ * 设置商品状态（管理员端，显式传方向）
  * @param id 商品ID
- * @param pageNum 页码
+ * @param status 1=上架，0=下架
  * @returns Promise<Result<string>>
  */
-export const setAdminProductStatus = (id: number, pageNum: number): Promise<Result<string>> => {
+export const setAdminProductStatus = (id: number, status: number): Promise<Result<string>> => {
   return request({
     url: '/admin/productManagement/status',
     method: 'PUT',
-    params: { id, pageNum }
+    params: { id, status }
   })
 }
 
@@ -1116,6 +1124,19 @@ export const updateUserInformation = (data: UserInformationUpdateDTO): Promise<R
   return request({
     url: '/user/userInformationManagement/updateUserInformation',
     method: 'PUT',
+    data
+  })
+}
+
+/**
+ * 修改用户密码
+ * @param data 旧密码 + 新密码
+ * @returns Promise<Result<boolean>>
+ */
+export const changeUserPassword = (data: ChangePasswordDTO): Promise<Result<boolean>> => {
+  return request({
+    url: '/user/userInformationManagement/changePassword',
+    method: 'POST',
     data
   })
 }
@@ -1200,6 +1221,43 @@ export const deleteCartItem = (productId: number): Promise<Result<string>> => {
 }
 
 /**
+ * 查看当前用户的全部购物车（按商家分组）
+ * @returns Promise<Result<CartMerchantGroupDVO[]>>
+ */
+export const getAllCartList = (): Promise<Result<CartMerchantGroupDVO[]>> => {
+  return request({
+    url: '/user/cart/listAll',
+    method: 'GET'
+  })
+}
+
+/**
+ * 修改购物车中某个商品的数量
+ * @param productId 商品ID
+ * @param quantity 目标数量（>=1）
+ * @returns Promise<Result<CartDVO>>
+ */
+export const updateCartQuantity = (productId: number, quantity: number): Promise<Result<CartDVO>> => {
+  return request({
+    url: '/user/cart/quantity',
+    method: 'PUT',
+    params: { productId, quantity }
+  })
+}
+
+/**
+ * 从购物车中整项移除某个商品（现有 deleteCartItem 是数量 -1）
+ * @param productId 商品ID
+ * @returns Promise<Result<string>>
+ */
+export const removeCartItem = (productId: number): Promise<Result<string>> => {
+  return request({
+    url: `/user/cart/remove/${productId}`,
+    method: 'DELETE'
+  })
+}
+
+/**
  * 获取用户地址列表
  * @returns Promise<Result<UserAddressDVO[]>>
  */
@@ -1265,10 +1323,11 @@ export const createOrder = (createOrderDTO: CreateOrderDTO): Promise<Result<User
  * 获取用户订单列表
  * @returns Promise<Result<UserOrdersDVO[]>>
  */
-export const getOrdersList = (): Promise<Result<UserOrdersDVO[]>> => {
+export const getOrdersList = (status?: string): Promise<Result<UserOrdersDVO[]>> => {
   return request({
     url: '/user/orders/list',
-    method: 'GET'
+    method: 'GET',
+    params: { status: status || undefined }
   })
 }
 
@@ -1321,11 +1380,16 @@ export const confirmOrder = (orderId: number): Promise<Result<string>> => {
  * @param pageSize 每页数量
  * @returns Promise<PageResult<MerchantOrdersDVO>>
  */
-export const getMerchantOrdersList = (pageNum: number, pageSize: number): Promise<PageResult<MerchantOrdersDVO>> => {
+export const getMerchantOrdersList = (
+  pageNum: number,
+  pageSize: number,
+  status?: string,
+  sort?: 'asc' | 'desc'
+): Promise<PageResult<MerchantOrdersDVO>> => {
   return request({
     url: '/merchant/orders/list',
     method: 'GET',
-    params: { pageNum, pageSize }
+    params: { pageNum, pageSize, status: status || undefined, sort }
   })
 }
 
@@ -1378,6 +1442,37 @@ export const getMerchantInformation = (): Promise<Result<MerchantInformationDVO>
 export const updateMerchantInformation = (data: UpdateMerchantInformationFormDTO): Promise<Result<string>> => {
   return request({
     url: '/merchant/Information/update',
+    method: 'POST',
+    data
+  })
+}
+
+/**
+ * 上传店铺 logo：后端先传到文件服务，再把 URL 写进商家表
+ * @param file 图片文件
+ * @returns Promise<Result<string>> data 为新的 logo URL
+ */
+export const uploadMerchantLogo = (file: File): Promise<Result<string>> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request({
+    url: '/merchant/Information/uploadLogo',
+    method: 'POST',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+/**
+ * 修改商家密码
+ * @param data 旧密码 + 新密码
+ * @returns Promise<Result<boolean>>
+ */
+export const changeMerchantPassword = (data: ChangePasswordDTO): Promise<Result<boolean>> => {
+  return request({
+    url: '/merchant/Information/changePassword',
     method: 'POST',
     data
   })

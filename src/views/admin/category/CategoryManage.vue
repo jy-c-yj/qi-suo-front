@@ -4,21 +4,21 @@
       <h2 class="module-title">商品分类管理</h2>
       <p class="module-description">管理系统中的商品分类信息</p>
     </div>
-    
+
     <div class="module-content">
-      <!-- 操作栏 -->
+      <!-- 操作栏：只有系统/超级管理员可以新增 -->
       <div class="action-bar">
-        <el-button type="primary" @click="handleAddCategory">添加分类</el-button>
+        <el-button v-if="canManage" type="primary" @click="handleAddCategory">添加分类</el-button>
       </div>
-      
+
       <!-- 查询条件 -->
       <div class="search-bar">
-        <el-form :inline="true" :model="searchForm">
+        <el-form :inline="true" :model="searchForm" class="search-form">
           <el-form-item label="分类名称">
-            <el-input v-model="searchForm.name" placeholder="请输入分类名称" clearable />
+            <el-input v-model="searchForm.name" placeholder="请输入分类名称" clearable style="width: 180px" />
           </el-form-item>
           <el-form-item label="分类类型">
-            <el-select v-model="searchForm.categoryType" placeholder="请选择分类类型" clearable>
+            <el-select v-model="searchForm.categoryType" placeholder="全部类型" clearable style="width: 140px">
               <el-option label="空间分类" :value="1" />
               <el-option label="风格分类" :value="2" />
               <el-option label="材质分类" :value="3" />
@@ -26,15 +26,15 @@
             </el-select>
           </el-form-item>
           <el-form-item label="是否启用">
-            <el-select v-model="searchForm.isActive" placeholder="请选择状态" clearable>
+            <el-select v-model="searchForm.isActive" placeholder="全部状态" clearable style="width: 120px">
               <el-option label="启用" :value="true" />
               <el-option label="禁用" :value="false" />
             </el-select>
           </el-form-item>
           <el-form-item label="分类层级">
-            <el-select v-model="searchForm.level" placeholder="请选择分类层级" clearable>
-              <el-option label="1" :value="1" />
-              <el-option label="2" :value="2" />
+            <el-select v-model="searchForm.level" placeholder="全部层级" clearable style="width: 120px">
+              <el-option label="一级分类" :value="1" />
+              <el-option label="二级分类" :value="2" />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -42,31 +42,37 @@
             <el-button @click="handleReset">重置</el-button>
           </el-form-item>
         </el-form>
-        
-        <!-- 已选择的查询条件 -->
-        <div v-if="hasSearchConditions" class="selected-conditions">
-          <span class="condition-label">已选条件：</span>
-          <el-tag v-if="searchForm.name" closable @close="handleRemoveCondition('name')" type="info">
-            分类名称：{{ searchForm.name }}
-          </el-tag>
-          <el-tag v-if="searchForm.categoryType !== undefined" closable @close="handleRemoveCondition('categoryType')" type="primary">
-            分类类型：{{ getCategoryTypeName(searchForm.categoryType) }}
-          </el-tag>
-          <el-tag v-if="searchForm.isActive !== undefined" closable @close="handleRemoveCondition('isActive')" :type="searchForm.isActive ? 'success' : 'warning'">
-            是否启用：{{ searchForm.isActive ? '启用' : '禁用' }}
-          </el-tag>
-          <el-tag v-if="searchForm.level !== undefined" closable @close="handleRemoveCondition('level')" type="info">
-            分类层级：{{ searchForm.level }}
-          </el-tag>
+
+        <!-- 已选择的查询条件：固定高度，避免查询栏抖动 -->
+        <div class="selected-conditions">
+          <span v-if="hasSearchConditions" class="condition-label">已选条件：</span>
+          <template v-if="hasSearchConditions">
+            <el-tag v-if="searchForm.name" closable @close="handleRemoveCondition('name')" type="info">
+              分类名称：{{ searchForm.name }}
+            </el-tag>
+            <el-tag v-if="searchForm.categoryType !== undefined && searchForm.categoryType !== null" closable @close="handleRemoveCondition('categoryType')" type="primary">
+              分类类型：{{ getCategoryTypeName(searchForm.categoryType) }}
+            </el-tag>
+            <el-tag v-if="searchForm.isActive !== undefined && searchForm.isActive !== null" closable @close="handleRemoveCondition('isActive')" :type="searchForm.isActive ? 'success' : 'warning'">
+              是否启用：{{ searchForm.isActive ? '启用' : '禁用' }}
+            </el-tag>
+            <el-tag v-if="searchForm.level !== undefined && searchForm.level !== null" closable @close="handleRemoveCondition('level')" type="info">
+              分类层级：{{ searchForm.level === 1 ? '一级分类' : '二级分类' }}
+            </el-tag>
+          </template>
         </div>
       </div>
-      
+
       <!-- 分类列表 -->
       <div class="category-list-section">
-        <el-table v-loading="loading" :data="categoryList" style="width: 100%">
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="name" label="分类名称" width="150" />
-          <el-table-column prop="parentName" label="父分类" width="150" />
+        <el-table v-loading="loading" :data="categoryList" style="width: 100%" border>
+          <el-table-column prop="name" label="分类名称" min-width="160" />
+          <el-table-column prop="id" label="分类ID" width="100" />
+          <el-table-column prop="parentName" label="父分类" width="150">
+            <template #default="scope">
+              {{ scope.row.parentName || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column prop="categoryType" label="分类类型" width="120">
             <template #default="scope">
               <el-tag :type="getCategoryTypeTagType(scope.row.categoryType)">
@@ -74,8 +80,12 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="level" label="层级" width="80" />
-          <el-table-column prop="path" label="路径" width="200" />
+          <el-table-column prop="level" label="层级" width="90">
+            <template #default="scope">
+              {{ scope.row.level === 1 ? '一级' : '二级' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="path" label="路径" width="180" />
           <el-table-column prop="isActive" label="状态" width="100">
             <template #default="scope">
               <el-tag :type="scope.row.isActive ? 'success' : 'info'">
@@ -85,18 +95,36 @@
           </el-table-column>
           <el-table-column prop="createdAt" label="创建时间" width="180" />
           <el-table-column prop="updatedAt" label="更新时间" width="180" />
-          <el-table-column label="操作" width="150">
+          <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
-              <el-button type="primary" size="small" @click="handleEdit(scope.row)">
-                编辑
+              <el-button
+                v-if="scope.row.isActive"
+                type="warning"
+                size="small"
+                @click="handleToggleStatus(scope.row, false)"
+              >
+                禁用
               </el-button>
-              <el-button type="danger" size="small" @click="handleDelete(scope.row.id)" style="margin-left: 8px">
+              <el-button
+                v-else
+                type="success"
+                size="small"
+                @click="handleToggleStatus(scope.row, true)"
+              >
+                启用
+              </el-button>
+              <el-button
+                v-if="canManage"
+                type="danger"
+                size="small"
+                @click="handleDelete(scope.row.id)"
+              >
                 删除
               </el-button>
             </template>
           </el-table-column>
         </el-table>
-        
+
         <!-- 分页组件 -->
         <div class="pagination-container">
           <el-pagination
@@ -111,88 +139,55 @@
         </div>
       </div>
     </div>
-    
-    <!-- 编辑窗口 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="'编辑分类 - ' + (editForm.name || '')"
-      width="500px"
-    >
-      <el-form :model="editForm" label-width="120px">
-        <el-form-item label="分类ID">
-          <el-input v-model="editForm.id" disabled />
-        </el-form-item>
-        <el-form-item label="分类名称">
-          <el-input v-model="editForm.name" placeholder="请输入分类名称" />
-        </el-form-item>
-        <el-form-item label="父分类">
-          <el-input v-model="editForm.parentName" disabled />
-        </el-form-item>
-        <el-form-item label="分类类型">
-          <el-tag>
-            {{ editForm.categoryType }}
-          </el-tag>
-        </el-form-item>
-        <el-form-item label="层级">
-          <el-input v-model="editForm.level" disabled />
-        </el-form-item>
-        <el-form-item label="路径">
-          <el-input v-model="editForm.path" disabled />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-tag :type="editForm.isActive ? 'success' : 'info'">
-            {{ editForm.isActive ? '启用' : '禁用' }}
-          </el-tag>
-        </el-form-item>
-        <el-form-item label="创建时间">
-          <el-input v-model="editForm.createdAt" disabled />
-        </el-form-item>
-        <el-form-item label="更新时间">
-          <el-input v-model="editForm.updatedAt" disabled />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleUpdateCategory">保存修改</el-button>
-          <el-button v-if="!editForm.isActive" type="success" @click="handleEnableCategory">启用</el-button>
-          <el-button v-else type="warning" @click="handleDisableCategory">禁用</el-button>
-        </span>
-      </template>
-    </el-dialog>
-    
-    <!-- 新增分类窗口 -->
+
+    <!-- 新增分类窗口：层级 -> 类型 -> 父分类（二级）-> 名称 -->
     <el-dialog
       v-model="addDialogVisible"
       title="新增分类"
-      width="500px"
+      width="520px"
     >
-      <el-form :model="addForm" label-width="120px">
-        <el-form-item label="父分类ID">
-          <el-input v-model="addForm.parentId" placeholder="0表示顶级分类" />
+      <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="100px">
+        <el-form-item label="分类层级" prop="level">
+          <el-select v-model="addForm.level" placeholder="请选择分类层级" style="width: 100%">
+            <el-option label="一级分类（无父分类）" :value="1" />
+            <el-option label="二级分类（需要父分类）" :value="2" />
+          </el-select>
         </el-form-item>
-        <el-form-item label="分类名称">
-          <el-input v-model="addForm.name" placeholder="请输入分类名称" />
-        </el-form-item>
-        <el-form-item label="分类类型">
-          <el-select v-model="addForm.categoryType" placeholder="请选择分类类型">
+        <el-form-item label="分类类型" prop="categoryType">
+          <el-select v-model="addForm.categoryType" placeholder="请选择分类类型" style="width: 100%">
             <el-option label="空间分类" :value="1" />
             <el-option label="风格分类" :value="2" />
             <el-option label="材质分类" :value="3" />
             <el-option label="功能分类" :value="4" />
           </el-select>
         </el-form-item>
-        <el-form-item label="分类层级">
-          <el-select v-model="addForm.level" placeholder="请选择分类层级">
-            <el-option label="1" :value="1" />
-            <el-option label="2" :value="2" />
+        <el-form-item v-if="addForm.level === 2" label="父分类" prop="parentId">
+          <el-select
+            v-model="addForm.parentId"
+            placeholder="请选择同类型的父分类"
+            filterable
+            :loading="parentLoading"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="parent in parentOptions"
+              :key="parent.id"
+              :label="parent.name"
+              :value="parent.id"
+            />
           </el-select>
+          <div v-if="addForm.categoryType && parentOptions.length === 0 && !parentLoading" class="form-hint">
+            该类型下暂无一级分类，请先新增一级分类
+          </div>
+        </el-form-item>
+        <el-form-item label="分类名称" prop="name">
+          <el-input v-model="addForm.name" placeholder="请输入分类名称" :maxlength="50" />
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="addDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleAddCategorySubmit">保存</el-button>
+          <el-button type="primary" :loading="addSubmitting" @click="handleAddCategorySubmit">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -200,10 +195,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCategory, getCategoryByCondition, setCategoryEnabled, setCategoryNotEnabled, deleteCategory, newCategory } from '@/api/user'
+import { getAdminType } from '@/utils/auth'
 import type { GetCategoryDVO, GetCategoryByConditionDTO, NewCategoryDTO } from '@/types'
+
+// 只有系统管理员、超级管理员可以新增/删除分类
+const canManage = computed(() => getAdminType() >= 2)
 
 // 加载状态
 const loading = ref(false)
@@ -221,29 +220,16 @@ const searchForm = ref<GetCategoryByConditionDTO>({
   name: '',
   categoryType: undefined,
   isActive: undefined,
-  level: undefined,
-  pageNum: 1,
-  pageSize: 10
+  level: undefined
 })
 
-// 编辑窗口相关
-const dialogVisible = ref(false)
-const editForm = ref<GetCategoryDVO>({
-  id: 0,
-  parentId: 0,
-  name: '',
-  parentName: '',
-  categoryType: 0,
-  isActive: 0,
-  level: 0,
-  path: '',
-  createdAt: '',
-  updatedAt: '',
-  children: []
-})
+// 记录最近一次生效的查询条件，翻页/改每页条数时沿用
+const activeQuery = ref<GetCategoryByConditionDTO | null>(null)
 
 // 新增分类窗口相关
 const addDialogVisible = ref(false)
+const addSubmitting = ref(false)
+const addFormRef = ref()
 const addForm = ref<NewCategoryDTO>({
   parentId: 0,
   name: '',
@@ -251,15 +237,38 @@ const addForm = ref<NewCategoryDTO>({
   level: 1
 })
 
+const parentOptions = ref<GetCategoryDVO[]>([])
+const parentLoading = ref(false)
+
+// 新增表单校验
+const addRules = {
+  level: [{ required: true, message: '请选择分类层级', trigger: 'change' }],
+  categoryType: [{ required: true, message: '请选择分类类型', trigger: 'change' }],
+  parentId: [{
+    validator: (_rule: any, value: any, callback: any) => {
+      if (addForm.value.level === 2 && (!value || Number(value) <= 0)) {
+        callback(new Error('请选择父分类'))
+      } else {
+        callback()
+      }
+    },
+    trigger: 'change'
+  }],
+  name: [
+    { required: true, message: '请输入分类名称', trigger: 'blur' },
+    { max: 50, message: '分类名称不能超过 50 个字符', trigger: 'blur' }
+  ]
+}
+
 // 获取分类类型标签类型
-const getCategoryTypeTagType = (categoryType: string) => {
+const getCategoryTypeTagType = (categoryType?: string) => {
   const typeMap: Record<string, any> = {
     '空间分类': 'primary',
     '风格分类': 'success',
     '材质分类': 'warning',
     '功能分类': 'info'
   }
-  return typeMap[categoryType] || ''
+  return categoryType ? typeMap[categoryType] || '' : ''
 }
 
 // 获取分类类型名称
@@ -275,10 +284,10 @@ const getCategoryTypeName = (categoryType: number) => {
 
 // 判断是否有查询条件
 const hasSearchConditions = computed(() => {
-  return searchForm.value.name !== '' || 
-         searchForm.value.categoryType !== undefined || 
-         searchForm.value.isActive !== undefined || 
-         searchForm.value.level !== undefined
+  return !!searchForm.value.name ||
+         (searchForm.value.categoryType !== undefined && searchForm.value.categoryType !== null) ||
+         (searchForm.value.isActive !== undefined && searchForm.value.isActive !== null) ||
+         (searchForm.value.level !== undefined && searchForm.value.level !== null)
 })
 
 // 移除单个查询条件
@@ -295,23 +304,34 @@ const handleRemoveCondition = (field: string) => {
   handleSearch()
 }
 
-// 加载分类列表
-const loadCategoryList = async () => {
+// 构建生效的查询条件（去掉空值）
+const buildQuery = (): GetCategoryByConditionDTO => ({
+  name: searchForm.value.name || undefined,
+  categoryType: searchForm.value.categoryType ?? undefined,
+  isActive: searchForm.value.isActive ?? undefined,
+  level: searchForm.value.level ?? undefined
+})
+
+// 加载分类列表：有筛选条件时按条件查，翻页沿用最近一次条件
+const fetchCategoryList = async () => {
   loading.value = true
   try {
-    const response = await getCategory(currentPage.value, pageSize.value)
-    if (response.data) {
-      if (response.data.rows) {
-        categoryList.value = response.data.rows
-      } else if (response.data.records) {
-        categoryList.value = response.data.records
-      } else {
-        categoryList.value = []
-      }
+    const query = activeQuery.value
+    const response = query
+      ? await getCategoryByCondition({
+          ...query,
+          pageNum: currentPage.value,
+          pageSize: pageSize.value
+        })
+      : await getCategory(currentPage.value, pageSize.value)
+
+    if ((response.code === 1 || response.code === 200) && response.data) {
+      categoryList.value = response.data.rows || response.data.records || []
       total.value = response.data.total || 0
     } else {
       categoryList.value = []
       total.value = 0
+      ElMessage.error(response.msg || '获取分类列表失败')
     }
   } catch (error: any) {
     ElMessage.error(error.message || '获取分类列表失败')
@@ -323,33 +343,10 @@ const loadCategoryList = async () => {
 }
 
 // 查询分类
-const handleSearch = async () => {
+const handleSearch = () => {
+  activeQuery.value = buildQuery()
   currentPage.value = 1
-  searchForm.value.pageNum = currentPage.value
-  searchForm.value.pageSize = pageSize.value
-  loading.value = true
-  try {
-    const response = await getCategoryByCondition(searchForm.value)
-    if (response.data) {
-      if (response.data.rows) {
-        categoryList.value = response.data.rows
-      } else if (response.data.records) {
-        categoryList.value = response.data.records
-      } else {
-        categoryList.value = []
-      }
-      total.value = response.data.total || 0
-    } else {
-      categoryList.value = []
-      total.value = 0
-    }
-  } catch (error: any) {
-    ElMessage.error(error.message || '查询分类失败')
-    categoryList.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
+  fetchCategoryList()
 }
 
 // 重置查询条件
@@ -358,60 +355,27 @@ const handleReset = () => {
     name: '',
     categoryType: undefined,
     isActive: undefined,
-    level: undefined,
-    pageNum: 1,
-    pageSize: 10
+    level: undefined
   }
+  activeQuery.value = null
   currentPage.value = 1
-  loadCategoryList()
+  fetchCategoryList()
 }
 
-// 编辑分类
-const handleEdit = (row: GetCategoryDVO) => {
-  editForm.value = { ...row }
-  dialogVisible.value = true
-}
-
-// 更新分类
-const handleUpdateCategory = async () => {
+// 启用/禁用分类
+const handleToggleStatus = async (row: GetCategoryDVO, enabled: boolean) => {
   try {
-    ElMessage.info('更新分类功能待实现')
-    dialogVisible.value = false
-    loadCategoryList()
-  } catch (error: any) {
-    ElMessage.error(error.message || '更新分类失败')
-  }
-}
-
-// 启用分类
-const handleEnableCategory = async () => {
-  try {
-    const response = await setCategoryEnabled(editForm.value.id, currentPage.value)
-    if (response.code === 1) {
-      ElMessage.success('启用成功')
-      dialogVisible.value = false
-      loadCategoryList()
+    const response = enabled
+      ? await setCategoryEnabled(row.id, currentPage.value)
+      : await setCategoryNotEnabled(row.id, currentPage.value)
+    if (response.code === 1 || response.code === 200) {
+      ElMessage.success(enabled ? '启用成功' : '禁用成功')
+      fetchCategoryList()
     } else {
-      ElMessage.error(response.msg || '启用失败')
+      ElMessage.error(response.msg || (enabled ? '启用失败' : '禁用失败'))
     }
   } catch (error: any) {
-    ElMessage.error(error.message || '启用失败')
-  }
-}
-
-// 禁用分类
-const handleDisableCategory = async () => {
-  try {
-    const response = await setCategoryNotEnabled(editForm.value.id, currentPage.value)
-    if (response.code === 1) {
-      ElMessage.success('禁用成功')
-      dialogVisible.value = false
-      loadCategoryList()
-    } else {
-      ElMessage.error(response.msg || '禁用失败')
-    }
-  } catch (error: any) {
-    ElMessage.error(error.message || '禁用失败')
+    ElMessage.error(error.message || (enabled ? '启用失败' : '禁用失败'))
   }
 }
 
@@ -424,25 +388,63 @@ const handleDelete = async (id: number) => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'error'
+        type: 'warning'
       }
     )
-    
+
     const response = await deleteCategory(id)
-    if (response.code === 1) {
+    if (response.code === 1 || response.code === 200) {
       ElMessage.success('删除成功')
-      loadCategoryList()
+      fetchCategoryList()
     } else {
       ElMessage.error(response.msg || '删除失败')
     }
   } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
-    }
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error?.message || '删除失败')
   }
 }
 
-// 添加分类
+// 加载指定类型的父分类（一级分类）
+const loadParentOptions = async (categoryType?: number) => {
+  parentOptions.value = []
+  if (addForm.value.level !== 2 || !categoryType) return
+  parentLoading.value = true
+  try {
+    const response = await getCategoryByCondition({
+      level: 1,
+      categoryType,
+      pageNum: 1,
+      pageSize: 200
+    })
+    if ((response.code === 1 || response.code === 200) && response.data) {
+      parentOptions.value = response.data.rows || response.data.records || []
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '获取父分类失败')
+  } finally {
+    parentLoading.value = false
+  }
+}
+
+// 修改层级或类型时，父分类需要重新拉取
+watch(() => addForm.value.level, (level) => {
+  addForm.value.parentId = 0
+  if (level === 2) {
+    loadParentOptions(addForm.value.categoryType)
+  } else {
+    parentOptions.value = []
+  }
+})
+
+watch(() => addForm.value.categoryType, (categoryType) => {
+  addForm.value.parentId = 0
+  if (addForm.value.level === 2) {
+    loadParentOptions(categoryType)
+  }
+})
+
+// 打开新增分类
 const handleAddCategory = () => {
   addForm.value = {
     parentId: 0,
@@ -450,53 +452,59 @@ const handleAddCategory = () => {
     categoryType: 1,
     level: 1
   }
+  parentOptions.value = []
   addDialogVisible.value = true
+  addFormRef.value?.clearValidate()
 }
 
 // 提交新增分类
 const handleAddCategorySubmit = async () => {
-  if (!addForm.value.name) {
-    ElMessage.error('请输入分类名称')
-    return
-  }
-  if (!addForm.value.categoryType) {
-    ElMessage.error('请选择分类类型')
-    return
-  }
-  if (!addForm.value.level) {
-    ElMessage.error('请输入分类层级')
-    return
-  }
-  
+  if (!addFormRef.value) return
   try {
-    const response = await newCategory(addForm.value)
-    if (response.code === 1) {
+    await addFormRef.value.validate()
+  } catch {
+    return
+  }
+
+  addSubmitting.value = true
+  try {
+    const payload: NewCategoryDTO = {
+      level: addForm.value.level,
+      categoryType: addForm.value.categoryType,
+      parentId: addForm.value.level === 1 ? 0 : Number(addForm.value.parentId),
+      name: addForm.value.name.trim()
+    }
+    const response = await newCategory(payload)
+    if (response.code === 1 || response.code === 200) {
       ElMessage.success('添加成功')
       addDialogVisible.value = false
-      loadCategoryList()
+      fetchCategoryList()
     } else {
       ElMessage.error(response.msg || '添加失败')
     }
   } catch (error: any) {
     ElMessage.error(error.message || '添加失败')
+  } finally {
+    addSubmitting.value = false
   }
 }
 
-// 分页大小改变
+// 分页大小改变：重置到第 1 页并沿用查询条件
 const handleSizeChange = (val: number) => {
   pageSize.value = val
-  loadCategoryList()
+  currentPage.value = 1
+  fetchCategoryList()
 }
 
-// 当前页改变
+// 当前页改变：沿用查询条件
 const handleCurrentChange = (val: number) => {
   currentPage.value = val
-  loadCategoryList()
+  fetchCategoryList()
 }
 
 // 组件挂载时加载分类列表
 onMounted(() => {
-  loadCategoryList()
+  fetchCategoryList()
 })
 </script>
 
@@ -537,8 +545,13 @@ onMounted(() => {
   border-radius: 4px;
 }
 
+.search-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+}
+
 .selected-conditions {
-  margin-top: 15px;
+  margin-top: 4px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -559,5 +572,12 @@ onMounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.form-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #e6a23c;
+  line-height: 1.4;
 }
 </style>

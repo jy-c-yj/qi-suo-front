@@ -17,28 +17,33 @@ const router = createRouter({
     {
       path: '/login/user',
       name: 'user-login',
-      component: () => import('@/views/login/UserLogin.vue'),
+      // 三个登录地址共用同一个组件，身份由 meta.loginApp 决定。
+      // URL 保持不变，appFromPath / 路由守卫 / 三端 token 隔离都不用改
+      component: () => import('@/views/login/Login.vue'),
       meta: {
         title: '用户登录 - 栖所',
-        requiresAuth: false
+        requiresAuth: false,
+        loginApp: 'user'
       }
     },
     {
       path: '/login/merchant',
       name: 'merchant-login',
-      component: () => import('@/views/login/MerchantLogin.vue'),
+      component: () => import('@/views/login/Login.vue'),
       meta: {
         title: '商家登录 - 栖所',
-        requiresAuth: false
+        requiresAuth: false,
+        loginApp: 'merchant'
       }
     },
     {
       path: '/login/admin',
       name: 'admin-login',
-      component: () => import('@/views/login/AdminLogin.vue'),
+      component: () => import('@/views/login/Login.vue'),
       meta: {
         title: '管理员登录 - 栖所',
-        requiresAuth: false
+        requiresAuth: false,
+        loginApp: 'admin'
       }
     },
     {
@@ -85,6 +90,16 @@ const router = createRouter({
       component: () => import('@/views/user/UserOrders.vue'),
       meta: {
         title: '我的订单 - 栖所',
+        requiresAuth: true // 需要登录
+      }
+    },
+    // 用户购物车页面
+    {
+      path: '/user/cart',
+      name: 'user-cart',
+      component: () => import('@/views/user/UserCart.vue'),
+      meta: {
+        title: '购物车 - 栖所',
         requiresAuth: true // 需要登录
       }
     },
